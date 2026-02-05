@@ -7,7 +7,7 @@ class EVRouteOptimizer:
             {"name": "Rest Area A1", "lat": 12.9500, "lon": 80.2000}
         ]
 
-    # 'dist_from_map' parameter add kiya gaya
+    # 'dist_from_map'
     def get_optimal_route(self, status, dist_from_map):
         try:
             # Placeholder 15.5 ko replace kiya
@@ -15,7 +15,7 @@ class EVRouteOptimizer:
         except (ValueError, TypeError):
             dist = 0.0
             
-        # Energy Calculation: $Energy = Distance \times 0.15$
+        # Energy Calculation: $Energy = Distance * 0.15
         energy = round(dist * 0.15, 2)
         
         return {

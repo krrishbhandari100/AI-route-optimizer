@@ -7,7 +7,6 @@ class DrowsinessDetector:
     def __init__(self):
         self.mp_face_mesh = mp.solutions.face_mesh.FaceMesh(refine_landmarks=True)
         
-        # --- CONFIG REVERTED & TUNED FROM YOUR FILE ---
         self.EAR_THRESH = 0.22           #
         self.EAR_CONSEC_FRAMES = 15      # Faster than original 40 for responsiveness
         self.MAR_THRESH = 0.6            #

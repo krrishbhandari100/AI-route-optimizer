@@ -1,5 +1,6 @@
 from flask import Flask, render_template, Response, jsonify, request
 import cv2
+
 # Import from your renamed file and class
 from safety_module import DrowsinessDetector 
 from routing_module import EVRouteOptimizer

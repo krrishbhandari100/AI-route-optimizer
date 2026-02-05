@@ -1,111 +1,255 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>AI EV Optimizer - Final</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
     <link rel="stylesheet" href="/static/css/style.css">
+    
     <style>
-        body { margin: 0; display: flex; background: #0b0b0b; color: white; font-family: sans-serif; height: 100vh; overflow: hidden; }
-        #side { width: 30%; padding: 20px; border-right: 1px solid #333; background: #151515; text-align: center; }
-        #map-panel { width: 70%; position: relative; }
-        #map-canvas { height: 100%; width: 100%; }
-        .video { width: 100%; border-radius: 10px; border: 2px solid #444; }
-        #status-bar { padding: 15px; margin-top: 15px; border-radius: 8px; font-weight: bold; }
-        .safe { background: #2ecc71; }
-        .danger { background: #e74c3c; animation: pulse 1s infinite; }
-        #controls { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(0,0,0,0.85); padding: 15px; border-radius: 10px; width: 320px; }
-        input { width: 100%; padding: 10px; margin-bottom: 5px; background: #222; color: white; border: 1px solid #555; border-radius: 5px; box-sizing: border-box; }
-        .suggestions { background: #222; position: absolute; width: 90%; z-index: 2000; max-height: 150px; overflow-y: auto; }
-        .sug-item { padding: 8px; cursor: pointer; border-bottom: 1px solid #333; font-size: 12px; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        /* Main Layout Configuration */
+        body {
+            margin: 0;
+            display: flex;
+            background: #0b0b0b;
+            color: white;
+            font-family: sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar for AI Video and Stats */
+        #side {
+            width: 30%;
+            padding: 20px;
+            border-right: 1px solid #333;
+            background: #151515;
+            text-align: center;
+        }
+
+        /* Right side container for the Interactive Map */
+        #map-panel {
+            width: 70%;
+            position: relative;
+        }
+
+        #map-canvas {
+            height: 100%;
+            width: 100%;
+        }
+
+        /* Styling for the live AI stream */
+        .video {
+            width: 100%;
+            border-radius: 10px;
+            border: 2px solid #444;
+        }
+
+        /* Status indicator box (Ready / Warning) */
+        #status-bar {
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        /* Color schemes for Driver State */
+        .safe { background: #2ecc71; } /* Green for Alert */
+        .danger { 
+            background: #e74c3c; /* Red for Drowsy/Head Drop */
+            animation: pulse 1s infinite; 
+        }
+
+        /* Floating control panel for Search Inputs */
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px;
+            border-radius: 10px;
+            width: 320px;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 5px;
+            background: #222;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+
+        /* Dropdown for location search suggestions */
+        .suggestions {
+            background: #222;
+            position: absolute;
+            width: 90%;
+            z-index: 2000;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .sug-item {
+            padding: 8px;
+            cursor: pointer;
+            border-bottom: 1px solid #333;
+            font-size: 12px;
+        }
+
+        /* Warning animation to catch driver's attention */
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
     </style>
 </head>
+
 <body>
     <div id="side">
         <h2>Driver Safety</h2>
         <img class="video" src="{{ url_for('video_feed') }}">
         <div id="status-bar" class="safe">READY</div>
+        
         <div style="text-align:left; margin-top:20px;">
             <p id="dist-txt">Distance: -- km</p>
             <p id="cons-txt" style="color:#2ecc71">Energy: -- kWh</p>
         </div>
     </div>
+
     <div id="map-panel">
         <div id="controls">
             <input type="text" id="start" placeholder="Start Location" oninput="debSearch(this, 's-list')">
             <div id="s-list" class="suggestions"></div>
+            
             <input type="text" id="end" placeholder="Destination" oninput="debSearch(this, 'e-list')">
             <div id="e-list" class="suggestions"></div>
-            <button onclick="go()" style="width:100%; padding:10px; background:#3498db; color:white; border:none; border-radius:5px; cursor:pointer;">OPTIMIZE ROUTE</button>
+            
+            <button onclick="go()" style="width:100%; padding:10px; background:#3498db; color:white; border:none; border-radius:5px; cursor:pointer;">
+                OPTIMIZE ROUTE
+            </button>
         </div>
         <div id="map-canvas"></div>
     </div>
+
     <audio id="alarm-sound" loop src="{{ url_for('static', filename='alarm.mp3') }}"></audio>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+    
     <script>
+        // Initialize Map centered on Chennai (default coords)
         var map = L.map('map-canvas').setView([12.9344, 80.2130], 11);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
+        // Configure Routing Machine with OSRM (Open Source Routing Machine)
         var routing = L.Routing.control({
             router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
             lineOptions: { styles: [{ color: '#2ecc71', weight: 7 }] },
             addWaypoints: false
         }).addTo(map);
 
-        // Search logic for inputs
+        /**
+         * Debounce Search: Prevents sending an API request for every single keystroke.
+         * Waits 600ms after user stops typing to call the Nominatim Geocoder.
+         */
         let timer;
-        function debSearch(i, l) { clearTimeout(timer); timer = setTimeout(() => search(i, l), 600); }
+        function debSearch(i, l) { 
+            clearTimeout(timer); 
+            timer = setTimeout(() => search(i, l), 600); 
+        }
+
+        /**
+         * Search Function: Fetches Latitude and Longitude for search strings.
+         */
         async function search(input, listId) {
             if (input.value.length < 3) return;
             const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${input.value}&limit=5`);
             const data = await res.json();
-            const list = document.getElementById(listId); list.innerHTML = "";
+            const list = document.getElementById(listId); 
+            list.innerHTML = "";
+            
             data.forEach(item => {
-                let d = document.createElement("div"); d.className = "sug-item"; d.innerText = item.display_name;
-                d.onclick = () => { input.value = item.display_name; input.dataset.lat = item.lat; input.dataset.lon = item.lon; list.innerHTML = ""; };
+                let d = document.createElement("div"); 
+                d.className = "sug-item"; 
+                d.innerText = item.display_name;
+                // Store coordinates in dataset attributes for the Routing engine
+                d.onclick = () => { 
+                    input.value = item.display_name; 
+                    input.dataset.lat = item.lat; 
+                    input.dataset.lon = item.lon; 
+                    list.innerHTML = ""; 
+                };
                 list.appendChild(d);
             });
         }
 
+        /**
+         * Go Function: Triggers the routing calculation on the map.
+         */
         function go() {
-            const s = document.getElementById('start').dataset; const e = document.getElementById('end').dataset;
-            if (s.lat && e.lat) routing.setWaypoints([L.latLng(s.lat, s.lon), L.latLng(e.lat, e.lon)]);
+            const s = document.getElementById('start').dataset; 
+            const e = document.getElementById('end').dataset;
+            if (s.lat && e.lat) {
+                routing.setWaypoints([L.latLng(s.lat, s.lon), L.latLng(e.lat, e.lon)]);
+            }
         }
 
+        // Browser security requires a user click before playing audio
         const alarm = document.getElementById('alarm-sound');
-        let canPlay = false; document.addEventListener('click', () => canPlay = true, { once: true });
+        let canPlay = false; 
+        document.addEventListener('click', () => canPlay = true, { once: true });
 
-        // Syncing REAL distance from map to backend
+        /**
+         * Sync Function (Every 1 second):
+         * 1. Extracts the ACTUAL road distance from Leaflet Routing Machine.
+         * 2. Sends the distance to Python Backend to calculate EV Energy consumption.
+         * 3. Receives AI Driver Status and Updates the UI + Alarm.
+         */
         async function sync() {
             try {
+                // Get the calculated route distance from the map
                 const activeRoute = routing._selectedRoute;
                 let currentKm = 0;
                 if (activeRoute && activeRoute.summary) {
                     currentKm = (activeRoute.summary.totalDistance / 1000).toFixed(2);
                 }
 
-                // Sending dynamic distance 'currentKm' to Python
+                // API call to Flask: Sends current route distance and gets safety/energy data
                 const res = await fetch(`/get_system_data?dist=${currentKm}`);
                 const data = await res.json();
-                
+
                 const bar = document.getElementById('status-bar');
+                
+                // Logic to handle Alert vs Danger UI
                 if (["Alert", "Looking Side", "Calibrating..."].includes(data.status)) {
                     bar.innerText = "STATUS: " + data.status.toUpperCase();
                     bar.className = "safe";
-                    alarm.pause();
+                    alarm.pause(); // Stop alarm if driver is alert
                 } else {
                     bar.innerText = "WARNING: " + data.status.toUpperCase();
                     bar.className = "danger";
+                    // Play alarm if driver is Drowsy/Yawning/Head Drop
                     if (canPlay) alarm.play().catch(() => { });
                 }
+
+                // Update text displays with data processed by Python
                 document.getElementById('dist-txt').innerText = "Distance: " + data.routes.eco.dist + " km";
                 document.getElementById('cons-txt').innerText = "Energy: " + data.routes.eco.energy + " kWh";
-            } catch (e) { }
+            } catch (e) { 
+                console.log("Sync Error:", e);
+            }
         }
+
+        // Start the background synchronization loop
         setInterval(sync, 1000);
     </script>
 </body>
+
 </html>
