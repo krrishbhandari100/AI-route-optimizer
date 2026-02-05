@@ -121,9 +121,9 @@
                     routePathLayer.clearLayers();
                     routes.forEach(function(r, i) {
                         if (i !== bestIdx) {
-                            // Real alternative path in Blue
+                            // Real alternative path in red
                             L.polyline(r.coordinates, {
-                                color: '#3498db', weight: 4, opacity: 0.6, dashArray: '5, 10'
+                                color: '#f50202', weight: 4, opacity: 0.6, dashArray: '5, 10'
                             }).addTo(routePathLayer);
                         }
                     });
