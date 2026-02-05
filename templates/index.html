@@ -1,154 +1,109 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>AI EV Optimizer - Color Coded Routing</title>
+    <title>AI EV Optimizer - Final</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    <link rel="stylesheet" href="/static/css/style.css">
     <style>
-        :root { --bg: #0b0b0b; --panel: #151515; --accent: #3498db; --green: #2ecc71; --red: #e74c3c; }
-        body { font-family: 'Segoe UI', sans-serif; display: flex; background: var(--bg); color: white; margin: 0; height: 100vh; overflow: hidden; }
-        
-        #side-panel { width: 30%; padding: 20px; border-right: 2px solid #333; background: var(--panel); display: flex; flex-direction: column; align-items: center; }
+        body { margin: 0; display: flex; background: #0b0b0b; color: white; font-family: sans-serif; height: 100vh; overflow: hidden; }
+        #side { width: 30%; padding: 20px; border-right: 1px solid #333; background: #151515; text-align: center; }
         #map-panel { width: 70%; position: relative; }
-        #map { height: 100%; width: 100%; }
-
-        .video-feed { width: 100%; border-radius: 12px; border: 3px solid #444; margin-bottom: 15px; }
-        #status-bar { width: 90%; padding: 15px; border-radius: 8px; font-size: 20px; font-weight: bold; text-align: center; background: #444; transition: 0.4s; }
-        .status-alert { background: var(--green) !important; }
-        .status-drowsy { background: var(--red) !important; animation: pulse 1s infinite; }
-
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
-
-        #controls {
-            position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; background: rgba(26, 26, 26, 0.9); padding: 12px;
-            border-radius: 10px; display: flex; gap: 10px; border: 1px solid #444; backdrop-filter: blur(10px);
-        }
-        input { background: #333; border: 1px solid #555; color: white; padding: 10px; border-radius: 5px; outline: none; width: 160px; }
-        button { background: var(--accent); color: white; border: none; padding: 10px 18px; border-radius: 5px; cursor: pointer; font-weight: bold; }
-
-        #stats-overlay {
-            position: absolute; bottom: 30px; left: 30px; z-index: 1000;
-            background: rgba(0,0,0,0.85); padding: 20px; border-radius: 10px;
-            border-left: 5px solid var(--green); min-width: 220px;
-        }
-
-        /* Cleaning Leaflet UI */
-        .leaflet-routing-container { display: none; }
+        #map-canvas { height: 100%; width: 100%; }
+        .video { width: 100%; border-radius: 10px; border: 2px solid #444; }
+        #status-bar { padding: 15px; margin-top: 15px; border-radius: 8px; font-weight: bold; }
+        .safe { background: #2ecc71; }
+        .danger { background: #e74c3c; animation: pulse 1s infinite; }
+        #controls { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(0,0,0,0.85); padding: 15px; border-radius: 10px; width: 320px; }
+        input { width: 100%; padding: 10px; margin-bottom: 5px; background: #222; color: white; border: 1px solid #555; border-radius: 5px; box-sizing: border-box; }
+        .suggestions { background: #222; position: absolute; width: 90%; z-index: 2000; max-height: 150px; overflow-y: auto; }
+        .sug-item { padding: 8px; cursor: pointer; border-bottom: 1px solid #333; font-size: 12px; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
-
-    <div id="side-panel">
-        <h2 style="color: var(--accent);">AI Safety Monitor</h2>
-        <img class="video-feed" src="{{ url_for('video_feed') }}">
-        <div id="status-bar">SYNCING AI...</div>
-        <div style="margin-top: 20px; font-size: 13px; color: #888; text-align: center;">
-            <p>• Green Path: <b>Eco-Optimized</b></p>
-            <p>• Blue Path: <b>Alternatives</b></p>
+    <div id="side">
+        <h2>Driver Safety</h2>
+        <img class="video" src="{{ url_for('video_feed') }}">
+        <div id="status-bar" class="safe">READY</div>
+        <div style="text-align:left; margin-top:20px;">
+            <p id="dist-txt">Distance: -- km</p>
+            <p id="cons-txt" style="color:#2ecc71">Energy: -- kWh</p>
         </div>
     </div>
-
     <div id="map-panel">
         <div id="controls">
-            <input type="text" id="start-node" placeholder="Start" value="VIT Chennai">
-            <input type="text" id="end-node" placeholder="End" value="Marina Beach">
-            <button onclick="calculateDynamicRoute()">Optimize</button>
+            <input type="text" id="start" placeholder="Start Location" oninput="debSearch(this, 's-list')">
+            <div id="s-list" class="suggestions"></div>
+            <input type="text" id="end" placeholder="Destination" oninput="debSearch(this, 'e-list')">
+            <div id="e-list" class="suggestions"></div>
+            <button onclick="go()" style="width:100%; padding:10px; background:#3498db; color:white; border:none; border-radius:5px; cursor:pointer;">OPTIMIZE ROUTE</button>
         </div>
-
-        <div id="stats-overlay">
-            <div style="font-size: 11px; color: var(--accent);">AI OPTIMIZATION METRICS</div>
-            <div id="dist-txt" style="font-weight: bold; margin: 5px 0;">Distance: -- km</div>
-            <div style="color: var(--green); font-size: 20px; font-weight: bold;">Eco Cons: <span id="kwh-txt">--</span> kWh</div>
-        </div>
-
-        <div id="map"></div>
+        <div id="map-canvas"></div>
     </div>
-
-    <audio id="alarm" loop src="{{ url_for('static', filename='alarm.mp3') }}"></audio>
+    <audio id="alarm-sound" loop src="{{ url_for('static', filename='alarm.mp3') }}"></audio>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
-
     <script>
-        var map = L.map('map').setView([12.9344, 80.2130], 11);
+        var map = L.map('map-canvas').setView([12.9344, 80.2130], 11);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        // Custom Marker Icons
-        var blueIcon = L.icon({
-            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-            iconSize: [25, 41], iconAnchor: [12, 41]
-        });
-
-        var redIcon = L.icon({
-            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-            iconSize: [25, 41], iconAnchor: [12, 41]
-        });
-
-        // --- DYNAMIC ROUTING ENGINE ---
-        var routingControl = L.Routing.control({
-            waypoints: [L.latLng(12.8344, 80.1530), L.latLng(13.0418, 80.2841)],
-            showAlternatives: true,
-            altLineOptions: {
-                styles: [{color: '#3498db', opacity: 0.4, weight: 5}] // OTHER PATHS IN BLUE
-            },
-            lineOptions: {
-                styles: [{color: '#2ecc71', weight: 8, opacity: 0.9}] // OPTIMIZED PATH IN GREEN
-            },
-            createMarker: function(i, wp) {
-                // DIFFERENT COLOUR POINTERS
-                if (i === 0) return L.marker(wp.latLng, {icon: blueIcon}).bindPopup("Start Point");
-                return L.marker(wp.latLng, {icon: redIcon}).bindPopup("Destination");
-            }
+        var routing = L.Routing.control({
+            router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+            lineOptions: { styles: [{ color: '#2ecc71', weight: 7 }] },
+            addWaypoints: false
         }).addTo(map);
 
-        routingControl.on('routesfound', function(e) {
-            var routes = e.routes;
-            var best = routes[0];
-            var d = (best.summary.totalDistance / 1000).toFixed(1);
-            document.getElementById('dist-txt').innerText = "Distance: " + d + " km";
-            document.getElementById('kwh-txt').innerText = (d * 0.18).toFixed(2);
-        });
-
-        async function getLatLng(q) {
-            try {
-                const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}`);
-                const d = await r.json();
-                return d.length > 0 ? { lat: d[0].lat, lon: d[0].lon } : null;
-            } catch(e) { return null; }
+        // Search logic for inputs
+        let timer;
+        function debSearch(i, l) { clearTimeout(timer); timer = setTimeout(() => search(i, l), 600); }
+        async function search(input, listId) {
+            if (input.value.length < 3) return;
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${input.value}&limit=5`);
+            const data = await res.json();
+            const list = document.getElementById(listId); list.innerHTML = "";
+            data.forEach(item => {
+                let d = document.createElement("div"); d.className = "sug-item"; d.innerText = item.display_name;
+                d.onclick = () => { input.value = item.display_name; input.dataset.lat = item.lat; input.dataset.lon = item.lon; list.innerHTML = ""; };
+                list.appendChild(d);
+            });
         }
 
-        async function calculateDynamicRoute() {
-            const s = await getLatLng(document.getElementById('start-node').value);
-            const d = await getLatLng(document.getElementById('end-node').value);
-            if (s && d) {
-                routingControl.setWaypoints([L.latLng(s.lat, s.lon), L.latLng(d.lat, d.lon)]);
-                map.setView([s.lat, s.lon], 12);
-            }
+        function go() {
+            const s = document.getElementById('start').dataset; const e = document.getElementById('end').dataset;
+            if (s.lat && e.lat) routing.setWaypoints([L.latLng(s.lat, s.lon), L.latLng(e.lat, e.lon)]);
         }
 
-        const alarm = document.getElementById('alarm');
-        let audioOn = false; document.addEventListener('click', () => audioOn = true, {once:true});
+        const alarm = document.getElementById('alarm-sound');
+        let canPlay = false; document.addEventListener('click', () => canPlay = true, { once: true });
 
+        // Syncing REAL distance from map to backend
         async function sync() {
             try {
-                const res = await fetch('/get_system_data');
-                const data = await res.json();
-                const bar = document.getElementById('status-bar');
-                bar.innerText = "STATUS: " + data.status.toUpperCase();
-
-                if (data.status === "Alert") {
-                    bar.className = "status-alert"; alarm.pause();
-                } else {
-                    bar.className = "status-drowsy";
-                    if(audioOn && alarm.paused) alarm.play();
-                    // Emergency Math: Auto-reroute to station
-                    routingControl.setWaypoints([routingControl.getWaypoints()[0].latLng, L.latLng(data.routes.suggested_stop.lat, data.routes.suggested_stop.lon)]);
+                const activeRoute = routing._selectedRoute;
+                let currentKm = 0;
+                if (activeRoute && activeRoute.summary) {
+                    currentKm = (activeRoute.summary.totalDistance / 1000).toFixed(2);
                 }
-            } catch(e) {}
+
+                // Sending dynamic distance 'currentKm' to Python
+                const res = await fetch(`/get_system_data?dist=${currentKm}`);
+                const data = await res.json();
+                
+                const bar = document.getElementById('status-bar');
+                if (["Alert", "Looking Side", "Calibrating..."].includes(data.status)) {
+                    bar.innerText = "STATUS: " + data.status.toUpperCase();
+                    bar.className = "safe";
+                    alarm.pause();
+                } else {
+                    bar.innerText = "WARNING: " + data.status.toUpperCase();
+                    bar.className = "danger";
+                    if (canPlay) alarm.play().catch(() => { });
+                }
+                document.getElementById('dist-txt').innerText = "Distance: " + data.routes.eco.dist + " km";
+                document.getElementById('cons-txt').innerText = "Energy: " + data.routes.eco.energy + " kWh";
+            } catch (e) { }
         }
         setInterval(sync, 1000);
     </script>

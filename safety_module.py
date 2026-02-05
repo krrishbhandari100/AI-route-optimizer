@@ -1,97 +1,95 @@
 import cv2
 import mediapipe as mp
 import numpy as np
-import time
 import math
-import collections
 
 class DrowsinessDetector:
     def __init__(self):
-        self.mp_face_mesh = mp.solutions.face_mesh.FaceMesh(
-            static_image_mode=False, max_num_faces=1, refine_landmarks=True,
-            min_detection_confidence=0.5, min_tracking_confidence=0.5)
+        self.mp_face_mesh = mp.solutions.face_mesh.FaceMesh(refine_landmarks=True)
         
-        # Thresholds from your new file
-        self.EAR_THRESH = 0.22
-        self.EAR_CONSEC_FRAMES = 30 
-        self.MAR_THRESH = 0.6
-        self.PITCH_DROP_THRESH = 20.0
+        # --- FAST DETECTION THRESHOLDS ---
+        self.EAR_THRESH = 0.25           # Thoda sensitive kiya
+        self.EAR_CONSEC_FRAMES = 10      # 40 se 10 (Instant alarm)
+        self.MAR_THRESH = 0.55           
+        self.PITCH_THRESH = 20.0         # 20 degree drop from baseline
+        self.PITCH_CONSEC_FRAMES = 5     # Fast head drop detection
         
-        # Counters & State
+        # Counters
         self.eye_counter = 0
         self.head_drop_counter = 0
-        self.yawn_timestamps = collections.deque()
-        self.last_yawn_time = 0
         self.status = "Alert"
         
-        # 3D Model Points for Head Pose
-        self.MODEL_POINTS = np.array([
-            (0.0, 0.0, 0.0), (0.0, -63.6, -12.5), (-43.3, 32.7, -26.0),
-            (43.3, 32.7, -26.0), (-28.9, -28.9, -24.1), (28.9, -28.9, -24.1)
+        # Calibration Variables
+        self.baseline_pitch = None
+        self.calib_frames = 0
+
+    def euclid(self, a, b):
+        return np.linalg.norm(np.array(a) - np.array(b))
+
+    def get_head_pose(self, landmarks, h, w):
+        # Indices from your uploaded file
+        img_pts = np.array([
+            (landmarks[1].x*w, landmarks[1].y*h),   # Nose
+            (landmarks[152].x*w, landmarks[152].y*h), # Chin
+            (landmarks[33].x*w, landmarks[33].y*h),  # L Eye
+            (landmarks[263].x*w, landmarks[263].y*h), # R Eye
+            (landmarks[78].x*w, landmarks[78].y*h),  # L Mouth
+            (landmarks[308].x*w, landmarks[308].y*h)  # R Mouth
         ], dtype=np.float64)
 
-    def get_head_pose(self, landmarks, shape):
-        h, w = shape[:2]
-        # Map 2D landmarks for PnP
-        image_points = np.array([
-            (landmarks[1].x * w, landmarks[1].y * h),   # nose
-            (landmarks[152].x * w, landmarks[152].y * h), # chin
-            (landmarks[33].x * w, landmarks[33].y * h),  # left eye
-            (landmarks[263].x * w, landmarks[263].y * h), # right eye
-            (landmarks[78].x * w, landmarks[78].y * h),  # left mouth
-            (landmarks[308].x * w, landmarks[308].y * h)  # right mouth
-        ], dtype=np.float64)
+        model_pts = np.array([(0.0,0.0,0.0), (0.0,-63.6,-12.5), (-43.3,32.7,-26.0),
+                             (43.3,32.7,-26.0), (-28.9,-28.9,-24.1), (28.9,-28.9,-24.1)], dtype=np.float64)
 
-        focal_length = w
-        camera_matrix = np.array([[focal_length, 0, w/2], [0, focal_length, h/2], [0, 0, 1]], dtype="double")
-        _, rv, _ = cv2.solvePnP(self.MODEL_POINTS, image_points, camera_matrix, np.zeros((4,1)))
+        cam_mat = np.array([[w, 0, w/2], [0, w, h/2], [0, 0, 1]], dtype="double")
+        _, rv, _ = cv2.solvePnP(model_pts, img_pts, cam_mat, np.zeros((4,1)), flags=cv2.SOLVEPNP_ITERATIVE)
         rmat, _ = cv2.Rodrigues(rv)
-        pitch = math.degrees(math.atan2(rmat[2,1], rmat[2,2]))
-        return pitch
-
-    def calculate_ear(self, landmarks, eye_indices, w, h):
-        pts = [(landmarks[i].x * w, landmarks[i].y * h) for i in eye_indices]
-        v1 = np.linalg.norm(np.array(pts[1]) - np.array(pts[5]))
-        v2 = np.linalg.norm(np.array(pts[2]) - np.array(pts[4]))
-        h1 = np.linalg.norm(np.array(pts[0]) - np.array(pts[3]))
-        return (v1 + v2) / (2.0 * h1)
+        return math.degrees(math.atan2(rmat[2,1], rmat[2,2]))
 
     def detect(self, frame):
         h, w, _ = frame.shape
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         res = self.mp_face_mesh.process(rgb)
-        new_status = "Alert"
+        current_status = "Alert"
 
         if res.multi_face_landmarks:
             lm = res.multi_face_landmarks[0].landmark
             
-            # 1. EAR Logic (Eyes)
-            ear = (self.calculate_ear(lm, [33, 160, 158, 133, 153, 144], w, h) + 
-                   self.calculate_ear(lm, [263, 387, 385, 362, 380, 373], w, h)) / 2.0
+            # 1. EAR Logic (Optimized)
+            def ear_calc(eye):
+                p2, p6 = lm[eye[1]], lm[eye[5]]
+                p3, p5 = lm[eye[2]], lm[eye[4]]
+                p1, p4 = lm[eye[0]], lm[eye[3]]
+                v = self.euclid((p2.x, p2.y), (p6.x, p6.y)) + self.euclid((p3.x, p3.y), (p5.x, p5.y))
+                h_dist = self.euclid((p1.x, p1.y), (p4.x, p4.y))
+                return v / (2.0 * h_dist + 1e-8)
+
+            ear = (ear_calc([33,160,158,133,153,144]) + ear_calc([263,387,385,362,380,373])) / 2.0
             
             if ear < self.EAR_THRESH:
                 self.eye_counter += 1
-                if self.eye_counter >= self.EAR_CONSEC_FRAMES: new_status = "Drowsy"
+                if self.eye_counter >= self.EAR_CONSEC_FRAMES: current_status = "Drowsy"
             else: self.eye_counter = 0
 
-            # 2. MAR Logic (Yawn)
-            mar = np.linalg.norm(np.array([lm[13].x*w, lm[13].y*h]) - np.array([lm[14].x*w, lm[14].y*h])) / \
-                  (np.linalg.norm(np.array([lm[78].x*w, lm[78].y*h]) - np.array([lm[308].x*w, lm[308].y*h])) + 1e-6)
-            
-            if mar > self.MAR_THRESH:
-                if (time.time() - self.last_yawn_time) > 2.0:
-                    self.yawn_timestamps.append(time.time())
-                    self.last_yawn_time = time.time()
-                new_status = "Yawning"
+            # 2. MAR Logic
+            mar = self.euclid((lm[13].x, lm[13].y), (lm[14].x, lm[14].y)) / \
+                  (self.euclid((lm[78].x, lm[78].y), (lm[308].x, lm[308].y)) + 1e-8)
+            if mar > self.MAR_THRESH: current_status = "Yawning"
 
-            # 3. Head Pose (Pitch)
+            # 3. Head Pitch with Calibration Fix
             try:
-                pitch = self.get_head_pose(lm, (h, w))
-                if pitch > self.PITCH_DROP_THRESH:
-                    self.head_drop_counter += 1
-                    if self.head_drop_counter >= 10: new_status = "Head Drop"
-                else: self.head_drop_counter = 0
+                pitch = self.get_head_pose(lm, h, w)
+                if self.calib_frames < 40: # Pehle 40 frames calibration ke liye
+                    if self.baseline_pitch is None: self.baseline_pitch = pitch
+                    else: self.baseline_pitch = (self.baseline_pitch * 0.9) + (pitch * 0.1)
+                    self.calib_frames += 1
+                    current_status = "Calibrating..."
+                else:
+                    deviation = abs(pitch - self.baseline_pitch)
+                    if deviation > self.PITCH_THRESH:
+                        self.head_drop_counter += 1
+                        if self.head_drop_counter >= self.PITCH_CONSEC_FRAMES: current_status = "Head Drop"
+                    else: self.head_drop_counter = 0
             except: pass
 
-        self.status = new_status
+        self.status = current_status
         return frame
