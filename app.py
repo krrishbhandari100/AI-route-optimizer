@@ -1,7 +1,6 @@
 from flask import Flask, render_template, Response, jsonify, request
 import cv2
 
-# Import from your renamed file and class
 from safety_module import DrowsinessDetector 
 from routing_module import EVRouteOptimizer
 
@@ -30,15 +29,36 @@ def video_feed():
         cap.release()
     return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
+# NEW API: Evaluates multiple routes based on Vehicle Physics
+@app.route('/evaluate_routes', methods=['POST'])
+def evaluate_routes():
+    data = request.json
+    routes_data = data.get('routes', [])
+    vehicle_name = data.get('vehicle_name', 'Tata Nexon EV')
+    
+    try:
+        passenger_count = int(data.get('passenger_count', 1))
+    except ValueError:
+        passenger_count = 1
+        
+    # Send to the optimizer engine
+    scores = optimizer.evaluate_alternatives(routes_data, vehicle_name, passenger_count)
+    return jsonify({"scores": scores})
+
 @app.route('/get_system_data')
 def get_system_data():
-    # Frontend (index.html) se aane wala real distance
     dist_val = request.args.get('dist', 0) 
+    vehicle_name = request.args.get('vehicle', 'Tata Nexon EV')
+    passengers = request.args.get('passengers', 1)
     
     status = detector.status # Drowsiness status
     
-    # Optimizer ko map ka actual distance bheja
-    route_data = optimizer.get_optimal_route(status, dist_val)
+    try:
+        p_count = int(passengers)
+    except ValueError:
+        p_count = 1
+        
+    route_data = optimizer.get_optimal_route(status, dist_val, vehicle_name, p_count)
     
     return jsonify({"status": status, "routes": route_data})
 

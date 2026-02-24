@@ -15,8 +15,14 @@
         #status-bar { padding: 15px; margin-top: 15px; border-radius: 8px; font-weight: bold; }
         .safe { background: #2ecc71; }
         .danger { background: #e74c3c; animation: pulse 1s infinite; }
-        #controls { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(0, 0, 0, 0.85); padding: 15px; border-radius: 10px; width: 320px; }
-        input { width: 100%; padding: 10px; margin-bottom: 5px; background: #222; color: white; border: 1px solid #555; border-radius: 5px; box-sizing: border-box; }
+        #controls { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(0, 0, 0, 0.85); padding: 15px; border-radius: 10px; width: 340px; }
+        input, select { width: 100%; padding: 10px; margin-bottom: 5px; background: #222; color: white; border: 1px solid #555; border-radius: 5px; box-sizing: border-box; }
+        
+        /* New Vehicle Controls Layout */
+        .vehicle-controls { display: flex; gap: 5px; margin-bottom: 10px; }
+        .vehicle-controls select { flex: 2; margin-bottom: 0; }
+        .vehicle-controls input { flex: 1; margin-bottom: 0; text-align: center; }
+        
         .suggestions { background: #222; position: absolute; width: 90%; z-index: 2000; max-height: 150px; overflow-y: auto; }
         .sug-item { padding: 8px; cursor: pointer; border-bottom: 1px solid #333; font-size: 12px; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
@@ -37,11 +43,20 @@
 
     <div id="map-panel">
         <div id="controls">
+            <div class="vehicle-controls">
+                <select id="vehicleModel">
+                    <option value="Tata Nexon EV">Tata Nexon EV</option>
+                    <option value="Tesla Model 3">Tesla Model 3</option>
+                    <option value="Mahindra XUV400">Mahindra XUV400</option>
+                </select>
+                <input type="number" id="passengerCount" value="1" min="1" max="5" title="Passengers">
+            </div>
+
             <input type="text" id="start" placeholder="Start Location" oninput="debSearch(this, 's-list')">
             <div id="s-list" class="suggestions"></div>
             <input type="text" id="end" placeholder="Destination" oninput="debSearch(this, 'e-list')">
             <div id="e-list" class="suggestions"></div>
-            <button onclick="go()" style="width:100%; padding:10px; background:#3498db; color:white; border:none; border-radius:5px; cursor:pointer;">
+            <button onclick="go()" style="width:100%; padding:10px; background:#3498db; color:white; border:none; border-radius:5px; cursor:pointer; font-weight: bold;">
                 OPTIMIZE ROUTE
             </button>
         </div>
@@ -54,25 +69,21 @@
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
     
     <script>
-        // Map Init
         var map = L.map('map-canvas').setView([12.9344, 80.2130], 11);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        // This layer group holds our custom Green and Blue polylines
         var routePathLayer = L.layerGroup().addTo(map);
 
-        // Setup Routing Engine - CRITICAL: serviceParameters added for REAL alternatives
         var routing = L.Routing.control({
             router: L.Routing.osrmv1({ 
                 serviceUrl: 'https://router.project-osrm.org/route/v1',
-                serviceParameters: { alternatives: 2 } // Request real alternatives from OSRM
+                serviceParameters: { alternatives: 2 } 
             }),
-            lineOptions: { styles: [{ opacity: 0 }] }, // Hide default black line
+            lineOptions: { styles: [{ opacity: 0 }] }, 
             show: false,
             addWaypoints: false
         }).addTo(map);
 
-        // Search logic
         let timer;
         function debSearch(i, l) { clearTimeout(timer); timer = setTimeout(() => search(i, l), 600); }
         async function search(input, listId) {
@@ -87,57 +98,69 @@
             });
         }
 
-        /**
-         * Real Optimization Function
-         */
         function go() {
             const s = document.getElementById('start').dataset; 
             const e = document.getElementById('end').dataset;
             
             if (s.lat && e.lat) {
-                routePathLayer.clearLayers(); // Wipe previous session
+                routePathLayer.clearLayers(); 
                 routing.setWaypoints([L.latLng(s.lat, s.lon), L.latLng(e.lat, e.lon)]);
 
-                routing.on('routesfound', function(event) {
+                // Changed to async to fetch physics data from Python
+                routing.on('routesfound', async function(event) {
                     var routes = event.routes; 
+                    
+                    // Extract data to send to Python
+                    let routesData = routes.map(r => ({
+                        distance: r.summary.totalDistance / 1000,
+                        duration: r.summary.totalTime / 60
+                    }));
+
+                    let vehicle = document.getElementById('vehicleModel').value;
+                    let passengers = document.getElementById('passengerCount').value;
+
+                    // Hit the new Python Physics Engine
+                    const res = await fetch('/evaluate_routes', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            routes: routesData,
+                            vehicle_name: vehicle,
+                            passenger_count: passengers
+                        })
+                    });
+                    
+                    const data = await res.json();
+                    const scores = data.scores;
+
                     var bestIdx = 0;
                     var minEnergy = Infinity;
 
-                    // REAL MATHEMATICAL OPTIMIZATION LOOP
-                    routes.forEach(function(r, i) {
-                        let d_km = r.summary.totalDistance / 1000;
-                        let t_min = r.summary.totalTime / 60;
-                        
-                        // Energy Cost Formula: Distance + Traffic Delay
-                        let energy = (d_km * 0.15) + (t_min * 0.01); 
-
+                    // Find the best route based on Python's physics score
+                    scores.forEach((energy, i) => {
                         if (energy < minEnergy) {
                             minEnergy = energy;
                             bestIdx = i;
                         }
                     });
 
-                    // Clear and Redraw
                     routePathLayer.clearLayers();
                     routes.forEach(function(r, i) {
                         if (i !== bestIdx) {
-                            // Real alternative path in red
                             L.polyline(r.coordinates, {
                                 color: '#f50202', weight: 4, opacity: 0.6, dashArray: '5, 10'
                             }).addTo(routePathLayer);
                         }
                     });
 
-                    // Real Optimized path in Green (Drawn last to be on top)
                     L.polyline(routes[bestIdx].coordinates, {
                         color: '#2ecc71', weight: 8, opacity: 1
                     }).addTo(routePathLayer);
 
-                    // Sync the chosen route data
                     routing._selectedRoute = routes[bestIdx];
                     document.getElementById('cons-txt').innerText = "Energy: " + minEnergy.toFixed(2) + " kWh";
                     document.getElementById('route-info').innerText = routes.length > 1 ? 
-                        "Status: Least Energy Route Selected" : "Status: Single Route Available";
+                        "Status: Physics-Optimized Route Selected" : "Status: Single Route Available";
                 });
             }
         }
@@ -151,7 +174,11 @@
                 if (!activeRoute) return;
                 
                 let currentKm = (activeRoute.summary.totalDistance / 1000).toFixed(2);
-                const res = await fetch(`/get_system_data?dist=${currentKm}`);
+                let vehicle = document.getElementById('vehicleModel').value;
+                let passengers = document.getElementById('passengerCount').value;
+
+                // Sync live distance and vehicle params
+                const res = await fetch(`/get_system_data?dist=${currentKm}&vehicle=${encodeURIComponent(vehicle)}&passengers=${passengers}`);
                 const data = await res.json();
 
                 const bar = document.getElementById('status-bar');
