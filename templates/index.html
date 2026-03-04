@@ -1,44 +1,56 @@
 <!DOCTYPE html>
 <html>
-
 <head>
     <title>AI EV Optimizer - Real-Time Optimization</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
     <link rel="stylesheet" href="/static/css/style.css">
     <style>
         body { margin: 0; display: flex; background: #0b0b0b; color: white; font-family: sans-serif; height: 100vh; overflow: hidden; }
-        #side { width: 30%; padding: 20px; border-right: 1px solid #333; background: #151515; text-align: center; }
+        #side { width: 30%; padding: 20px; border-right: 1px solid #333; background: #151515; text-align: center; overflow-y: auto; }
         #map-panel { width: 70%; position: relative; }
         #map-canvas { height: 100%; width: 100%; }
         .video { width: 100%; border-radius: 10px; border: 2px solid #444; }
         #status-bar { padding: 15px; margin-top: 15px; border-radius: 8px; font-weight: bold; }
-        .safe { background: #2ecc71; }
+        .safe   { background: #2ecc71; }
         .danger { background: #e74c3c; animation: pulse 1s infinite; }
-        #controls { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(0, 0, 0, 0.85); padding: 15px; border-radius: 10px; width: 340px; }
+        #controls { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(0,0,0,0.85); padding: 15px; border-radius: 10px; width: 340px; }
         input, select { width: 100%; padding: 10px; margin-bottom: 5px; background: #222; color: white; border: 1px solid #555; border-radius: 5px; box-sizing: border-box; }
-        
-        /* New Vehicle Controls Layout */
         .vehicle-controls { display: flex; gap: 5px; margin-bottom: 10px; }
         .vehicle-controls select { flex: 2; margin-bottom: 0; }
-        .vehicle-controls input { flex: 1; margin-bottom: 0; text-align: center; }
-        
+        .vehicle-controls input  { flex: 1; margin-bottom: 0; text-align: center; }
         .suggestions { background: #222; position: absolute; width: 90%; z-index: 2000; max-height: 150px; overflow-y: auto; }
         .sug-item { padding: 8px; cursor: pointer; border-bottom: 1px solid #333; font-size: 12px; }
+        #warning-banner { display: none; background: #e74c3c; color: white; font-weight: bold; padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 13px; }
+        #energy-comparison { margin-top: 15px; text-align: left; }
+        #energy-comparison h4 { color: #3498db; margin-bottom: 8px; font-size: 13px; }
+        .route-card { background: #1e1e1e; border: 1px solid #333; border-radius: 8px; padding: 10px; margin-bottom: 8px; font-size: 12px; }
+        .route-card.best { border-color: #2ecc71; }
+        .route-card .badge { float: right; background: #2ecc71; color: black; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: bold; }
+        .route-card .savings { color: #f39c12; font-weight: bold; }
+        #stop-box { display: none; background: #1a1a2e; border: 1px solid #e74c3c; border-radius: 8px; padding: 10px; margin-top: 10px; text-align: left; font-size: 12px; }
+        #stop-box h4 { color: #e74c3c; margin: 0 0 5px 0; font-size: 13px; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
     </style>
 </head>
-
 <body>
     <div id="side">
         <h2>Driver Safety</h2>
         <img class="video" src="{{ url_for('video_feed') }}">
         <div id="status-bar" class="safe">READY</div>
-        <div style="text-align:left; margin-top:20px;">
+        <div id="warning-banner"></div>
+
+        <div id="stop-box">
+            <h4>⚠️ Suggested Stop</h4>
+            <p id="stop-name" style="margin:0; color:white;"></p>
+        </div>
+
+        <div style="text-align:left; margin-top:15px;">
             <p id="dist-txt">Distance: -- km</p>
             <p id="cons-txt" style="color:#2ecc71">Energy: -- kWh</p>
-            <p id="route-info" style="font-size: 12px; color: #3498db;"></p>
+            <p id="route-info" style="font-size:12px; color:#3498db;"></p>
         </div>
+
+        <div id="energy-comparison"></div>
     </div>
 
     <div id="map-panel">
@@ -51,12 +63,15 @@
                 </select>
                 <input type="number" id="passengerCount" value="1" min="1" max="5" title="Passengers">
             </div>
-
             <input type="text" id="start" placeholder="Start Location" oninput="debSearch(this, 's-list')">
             <div id="s-list" class="suggestions"></div>
             <input type="text" id="end" placeholder="Destination" oninput="debSearch(this, 'e-list')">
             <div id="e-list" class="suggestions"></div>
-            <button onclick="go()" style="width:100%; padding:10px; background:#3498db; color:white; border:none; border-radius:5px; cursor:pointer; font-weight: bold;">
+            <label style="font-size:12px; color:#aaa;">
+                <input type="checkbox" id="urbanMode" style="width:auto; margin-right:5px;">
+                Urban / City Driving
+            </label>
+            <button onclick="go()" style="width:100%; padding:10px; margin-top:8px; background:#3498db; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">
                 OPTIMIZE ROUTE
             </button>
         </div>
@@ -64,133 +79,197 @@
     </div>
 
     <audio id="alarm-sound" loop src="{{ url_for('static', filename='alarm.mp3') }}"></audio>
-
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
-    
+
     <script>
+        // ── Vehicle Icons ──────────────────────────────────────────
+        const vehicleIcons = {
+            "Tata Nexon EV":   "🚙",
+            "Tesla Model 3":   "🏎️",
+            "Mahindra XUV400": "🚗"
+        };
+
+        function makeVehicleIcon(vehicle) {
+            return L.divIcon({
+                html:       `<div style="font-size:28px; line-height:1;">${vehicleIcons[vehicle] || "🚗"}</div>`,
+                className:  "",
+                iconSize:   [30, 30],
+                iconAnchor: [15, 15]
+            });
+        }
+
+        // ── Map Setup ──────────────────────────────────────────────
         var map = L.map('map-canvas').setView([12.9344, 80.2130], 11);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
         var routePathLayer = L.layerGroup().addTo(map);
+        var markerLayer    = L.layerGroup().addTo(map);
+        var currentRouteDist = null;
 
-        var routing = L.Routing.control({
-            router: L.Routing.osrmv1({ 
-                serviceUrl: 'https://router.project-osrm.org/route/v1',
-                serviceParameters: { alternatives: 2 } 
-            }),
-            lineOptions: { styles: [{ opacity: 0 }] }, 
-            show: false,
-            addWaypoints: false
-        }).addTo(map);
-
+        // ── Search ─────────────────────────────────────────────────
         let timer;
         function debSearch(i, l) { clearTimeout(timer); timer = setTimeout(() => search(i, l), 600); }
+
         async function search(input, listId) {
             if (input.value.length < 3) return;
-            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${input.value}&limit=5`);
+            const res  = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${input.value}&limit=5`);
             const data = await res.json();
-            const list = document.getElementById(listId); list.innerHTML = "";
+            const list = document.getElementById(listId);
+            list.innerHTML = "";
             data.forEach(item => {
-                let d = document.createElement("div"); d.className = "sug-item"; d.innerText = item.display_name;
-                d.onclick = () => { input.value = item.display_name; input.dataset.lat = item.lat; input.dataset.lon = item.lon; list.innerHTML = ""; };
+                let d = document.createElement("div");
+                d.className = "sug-item";
+                d.innerText = item.display_name;
+                d.onclick = () => {
+                    input.value = item.display_name;
+                    input.dataset.lat = item.lat;
+                    input.dataset.lon = item.lon;
+                    list.innerHTML = "";
+                };
                 list.appendChild(d);
             });
         }
 
-        function go() {
-            const s = document.getElementById('start').dataset; 
+        // ── Main Route Function ────────────────────────────────────
+        async function go() {
+            const s = document.getElementById('start').dataset;
             const e = document.getElementById('end').dataset;
-            
-            if (s.lat && e.lat) {
-                routePathLayer.clearLayers(); 
-                routing.setWaypoints([L.latLng(s.lat, s.lon), L.latLng(e.lat, e.lon)]);
+            if (!s.lat || !e.lat) { alert("Please select both locations from suggestions."); return; }
 
-                // Changed to async to fetch physics data from Python
-                routing.on('routesfound', async function(event) {
-                    var routes = event.routes; 
-                    
-                    // Extract data to send to Python
-                    let routesData = routes.map(r => ({
-                        distance: r.summary.totalDistance / 1000,
-                        duration: r.summary.totalTime / 60
-                    }));
+            document.getElementById('route-info').innerText = "Fetching routes...";
+            document.getElementById('energy-comparison').innerHTML = "";
+            routePathLayer.clearLayers();
+            markerLayer.clearLayers();
 
-                    let vehicle = document.getElementById('vehicleModel').value;
-                    let passengers = document.getElementById('passengerCount').value;
+            const vehicle    = document.getElementById('vehicleModel').value;
+            const passengers = document.getElementById('passengerCount').value;
+            const urban      = document.getElementById('urbanMode').checked ? '1' : '0';
+            const url = `/get_routes?orig_lat=${s.lat}&orig_lon=${s.lon}&dest_lat=${e.lat}&dest_lon=${e.lon}&vehicle=${encodeURIComponent(vehicle)}&passengers=${passengers}&urban=${urban}`;
 
-                    // Hit the new Python Physics Engine
-                    const res = await fetch('/evaluate_routes', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            routes: routesData,
-                            vehicle_name: vehicle,
-                            passenger_count: passengers
-                        })
-                    });
-                    
-                    const data = await res.json();
-                    const scores = data.scores;
+            try {
+                const res  = await fetch(url);
+                const data = await res.json();
+                if (data.error) { document.getElementById('route-info').innerText = "Error: " + data.error; return; }
 
-                    var bestIdx = 0;
-                    var minEnergy = Infinity;
+                const routes  = data.routes;
+                const bestKwh = routes[0].energy_kwh;
 
-                    // Find the best route based on Python's physics score
-                    scores.forEach((energy, i) => {
-                        if (energy < minEnergy) {
-                            minEnergy = energy;
-                            bestIdx = i;
-                        }
-                    });
-
-                    routePathLayer.clearLayers();
-                    routes.forEach(function(r, i) {
-                        if (i !== bestIdx) {
-                            L.polyline(r.coordinates, {
-                                color: '#f50202', weight: 4, opacity: 0.6, dashArray: '5, 10'
-                            }).addTo(routePathLayer);
-                        }
-                    });
-
-                    L.polyline(routes[bestIdx].coordinates, {
-                        color: '#2ecc71', weight: 8, opacity: 1
-                    }).addTo(routePathLayer);
-
-                    routing._selectedRoute = routes[bestIdx];
-                    document.getElementById('cons-txt').innerText = "Energy: " + minEnergy.toFixed(2) + " kWh";
-                    document.getElementById('route-info').innerText = routes.length > 1 ? 
-                        "Status: Physics-Optimized Route Selected" : "Status: Single Route Available";
+                // ── Draw routes on map ─────────────────────────────
+                routes.forEach((route, i) => {
+                    const isBest  = i === 0;
+                    const latlngs = route.geometry.map(pt => [pt[0], pt[1]]);
+                    L.polyline(latlngs, {
+                        color:     isBest ? '#2ecc71' : '#e74c3c',
+                        weight:    isBest ? 7 : 4,
+                        opacity:   isBest ? 1.0 : 0.5,
+                        dashArray: isBest ? null : '8, 10'
+                    }).addTo(routePathLayer).bindPopup(
+                        `<b>${isBest ? '✅ Best' : 'Route ' + (i+1)} — ${route.energy_kwh.toFixed(3)} kWh</b><br>
+                         Distance: ${route.distance_km} km<br>
+                         Duration: ${route.duration_min.toFixed(1)} min<br>
+                         Grade: ${route.grade_percent}%`
+                    );
                 });
+
+                // ── Vehicle emoji icon at origin ───────────────────
+                L.marker([parseFloat(s.lat), parseFloat(s.lon)], {
+                    icon: makeVehicleIcon(vehicle)
+                }).addTo(markerLayer).bindPopup(`📍 Start — ${vehicle}`);
+
+                L.marker([parseFloat(e.lat), parseFloat(e.lon)])
+                 .addTo(markerLayer).bindPopup("🏁 Destination");
+
+                // ── Sidebar info ───────────────────────────────────
+                currentRouteDist = routes[0].distance_km;
+                document.getElementById('dist-txt').innerText = "Distance: " + routes[0].distance_km + " km";
+                document.getElementById('cons-txt').innerText = "Energy: "   + routes[0].energy_kwh.toFixed(3) + " kWh";
+                document.getElementById('route-info').innerText =
+                    routes.length > 1 ? `${routes.length} routes found — Best in green` : "Single route available";
+
+                // ── Energy comparison cards ────────────────────────
+                buildComparisonCards(routes, bestKwh);
+
+                handleSafetyWarning(data.safety_warning);
+
+            } catch (err) {
+                document.getElementById('route-info').innerText = "Failed to fetch routes.";
             }
         }
 
+        // ── Energy comparison cards ────────────────────────────────
+        function buildComparisonCards(routes, bestKwh) {
+            const container = document.getElementById('energy-comparison');
+            container.innerHTML = "<h4>⚡ Route Energy Comparison</h4>";
+            routes.forEach((route, i) => {
+                const isBest  = i === 0;
+                const savings = isBest ? 0 : ((route.energy_kwh - bestKwh) / bestKwh * 100).toFixed(1);
+                const card    = document.createElement('div');
+                card.className = "route-card" + (isBest ? " best" : "");
+                card.innerHTML = `
+                    ${isBest ? '<span class="badge">BEST</span>' : ''}
+                    <b>Route ${i + 1}</b><br>
+                    ⚡ ${route.energy_kwh.toFixed(3)} kWh &nbsp;|&nbsp; 📏 ${route.distance_km} km<br>
+                    ⏱ ${route.duration_min.toFixed(1)} min &nbsp;|&nbsp; 📐 ${route.grade_percent}%
+                    ${!isBest
+                        ? `<br><span class="savings">+${savings}% more energy than best</span>`
+                        : `<br><span style="color:#2ecc71">✅ Most efficient</span>`}
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // ── Safety Warning ─────────────────────────────────────────
+        function handleSafetyWarning(warning) {
+            const banner = document.getElementById('warning-banner');
+            const alarm  = document.getElementById('alarm-sound');
+            if (warning && warning.alert) {
+                banner.style.display = "block";
+                banner.innerText     = "⚠️ " + warning.message;
+            } else {
+                banner.style.display = "none";
+                alarm.pause();
+            }
+        }
+
+        function showSuggestedStop(stop) {
+            const box = document.getElementById('stop-box');
+            if (stop) {
+                document.getElementById('stop-name').innerText = "📍 " + stop.name;
+                box.style.display = "block";
+            } else {
+                box.style.display = "none";
+            }
+        }
+
+        // ── Live Sync ──────────────────────────────────────────────
         const alarm = document.getElementById('alarm-sound');
-        let canPlay = false; document.addEventListener('click', () => canPlay = true, { once: true });
+        let canPlay = false;
+        document.addEventListener('click', () => canPlay = true, { once: true });
 
         async function sync() {
             try {
-                const activeRoute = routing._selectedRoute;
-                if (!activeRoute) return;
-                
-                let currentKm = (activeRoute.summary.totalDistance / 1000).toFixed(2);
-                let vehicle = document.getElementById('vehicleModel').value;
-                let passengers = document.getElementById('passengerCount').value;
-
-                // Sync live distance and vehicle params
-                const res = await fetch(`/get_system_data?dist=${currentKm}&vehicle=${encodeURIComponent(vehicle)}&passengers=${passengers}`);
+                const vehicle    = document.getElementById('vehicleModel').value;
+                const passengers = document.getElementById('passengerCount').value;
+                const dist       = currentRouteDist || 0;
+                const res  = await fetch(`/get_system_data?dist=${dist}&vehicle=${encodeURIComponent(vehicle)}&passengers=${passengers}`);
                 const data = await res.json();
+                const bar  = document.getElementById('status-bar');
 
-                const bar = document.getElementById('status-bar');
                 if (["Alert", "Looking Side", "Calibrating..."].includes(data.status)) {
-                    bar.innerText = "STATUS: " + data.status.toUpperCase(); bar.className = "safe"; alarm.pause();
+                    bar.innerText = "STATUS: " + data.status.toUpperCase();
+                    bar.className = "safe";
+                    alarm.pause();
+                    handleSafetyWarning(null);
+                    showSuggestedStop(null);
                 } else {
-                    bar.innerText = "WARNING: " + data.status.toUpperCase(); bar.className = "danger";
-                    if (canPlay) alarm.play().catch(() => { });
+                    bar.innerText = "WARNING: " + data.status.toUpperCase();
+                    bar.className = "danger";
+                    if (canPlay) alarm.play().catch(() => {});
+                    handleSafetyWarning(data.safety_warning);
+                    showSuggestedStop(data.routes && data.routes.suggested_stop);
                 }
-                document.getElementById('dist-txt').innerText = "Distance: " + currentKm + " km";
-            } catch (e) { }
+            } catch (e) {}
         }
+
         setInterval(sync, 1000);
     </script>
 </body>
