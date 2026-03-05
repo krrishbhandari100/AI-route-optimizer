@@ -1,35 +1,25 @@
 import math
+import csv
+import os
 
 class EVRouteOptimizer:
-    def __init__(self):
-        self.ev_profiles = {
-            "Tata Nexon EV": {
-                "base_mass_kg": 1400,
-                "drag_cd": 0.33,
-                "frontal_area_m2": 2.45,
-                "crr": 0.012,
-                "regen_efficiency": 0.65,
-                "drivetrain_efficiency": 0.85,
-                "p_aux": 0.01
-            },
-            "Tesla Model 3": {
-                "base_mass_kg": 1610,
-                "drag_cd": 0.23,
-                "frontal_area_m2": 2.22,
-                "crr": 0.010,
-                "regen_efficiency": 0.70,
-                "drivetrain_efficiency": 0.90,
-                "p_aux": 0.012
-            },
-            "Mahindra XUV400": {
-                "base_mass_kg": 1550,
-                "drag_cd": 0.35,
-                "frontal_area_m2": 2.60,
-                "crr": 0.013,
-                "regen_efficiency": 0.60,
-                "drivetrain_efficiency": 0.84,
-                "p_aux": 0.011
-            }
+    def __init__(self, profiles_csv=None):
+        # ── Load EV profiles from CSV dataset ─────────────────────
+        if profiles_csv is None:
+            # Default: look for ev_profiles.csv next to this file
+            profiles_csv = os.path.join(os.path.dirname(__file__), "ev_profiles.csv")
+
+        self.ev_profiles = self._load_profiles(profiles_csv)
+
+        # Fallback hardcoded profile if CSV fails to load
+        self._fallback_profile = {
+            "base_mass_kg": 1500,
+            "drag_cd": 0.32,
+            "frontal_area_m2": 2.45,
+            "crr": 0.012,
+            "regen_efficiency": 0.65,
+            "drivetrain_efficiency": 0.85,
+            "p_aux": 0.011
         }
 
         self.stations = [
@@ -41,106 +31,109 @@ class EVRouteOptimizer:
         self.GRAVITY     = 9.81
 
     # ------------------------------------------------------------------
-    # SINGLE SEGMENT energy (core physics)
+    # Load profiles from CSV
+    # ------------------------------------------------------------------
+
+    def _load_profiles(self, csv_path):
+        """
+        Reads ev_profiles.csv and returns a dict keyed by vehicle_name.
+        Extra columns like cd_source, mass_source, crr_source are ignored
+        by the physics model but kept in the file for academic citation.
+        """
+        profiles = {}
+        PHYSICS_KEYS = {
+            "base_mass_kg", "drag_cd", "frontal_area_m2",
+            "crr", "regen_efficiency", "drivetrain_efficiency", "p_aux"
+        }
+        try:
+            with open(csv_path, newline='', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    name = row["vehicle_name"].strip()
+                    profiles[name] = {
+                        k: float(row[k])
+                        for k in PHYSICS_KEYS
+                        if k in row and row[k].strip() != ''
+                    }
+            print(f"[EVRouteOptimizer] Loaded {len(profiles)} EV profiles from {csv_path}")
+        except FileNotFoundError:
+            print(f"[EVRouteOptimizer] WARNING: {csv_path} not found. Using fallback profile.")
+        except Exception as e:
+            print(f"[EVRouteOptimizer] WARNING: Failed to load profiles — {e}")
+        return profiles
+
+    def get_vehicle_names(self):
+        """Returns list of all available vehicle names — used by frontend dropdown."""
+        return sorted(self.ev_profiles.keys())
+
+    # ------------------------------------------------------------------
+    # Core physics — single segment
     # ------------------------------------------------------------------
 
     def _segment_energy_joules(self, car, total_mass, dist_m, speed_ms, grade_percent, is_urban):
-        """
-        Computes energy in Joules for one road segment.
-        Called repeatedly by calculate_smart_energy_segmented.
-        """
         grade_rad = math.atan(grade_percent / 100.0)
 
-        # A. Rolling Resistance
         F_rolling = car["crr"] * total_mass * self.GRAVITY * math.cos(grade_rad)
         E_rolling = F_rolling * dist_m
 
-        # B. Aerodynamic Drag
         F_drag    = 0.5 * self.AIR_DENSITY * car["drag_cd"] * car["frontal_area_m2"] * (speed_ms ** 2)
         E_drag    = F_drag * dist_m
 
-        # C. Gravity / Grade
         F_gravity = total_mass * self.GRAVITY * math.sin(grade_rad)
         E_gravity = F_gravity * dist_m
         if E_gravity < 0:
-            E_gravity *= car["regen_efficiency"]  # downhill regen recovery
+            E_gravity *= car["regen_efficiency"]
 
-        # D. Kinetic stop-start losses (urban only)
         E_kinetic = 0.0
         if is_urban:
-            dist_km       = dist_m / 1000
-            num_stops     = dist_km * 1.0
-            E_kinetic     = 0.5 * total_mass * (speed_ms ** 2) * num_stops
-            E_kinetic    *= (1.0 - car["regen_efficiency"])
+            num_stops  = (dist_m / 1000) * 1.0
+            E_kinetic  = 0.5 * total_mass * (speed_ms ** 2) * num_stops
+            E_kinetic *= (1.0 - car["regen_efficiency"])
 
         E_total = E_rolling + E_drag + E_gravity + E_kinetic
-
-        # Apply drivetrain efficiency
         if E_total > 0:
             E_total /= car["drivetrain_efficiency"]
 
         return E_total
 
     # ------------------------------------------------------------------
-    # PER-SEGMENT scoring  [NEW]
+    # Per-segment energy scoring
     # ------------------------------------------------------------------
 
     def calculate_smart_energy_segmented(
-        self,
-        segments,           # list of {distance_km, grade_percent} dicts
-        total_duration_min, # total route time (for speed estimate)
-        total_distance_km,  # total route distance
-        vehicle_name,
-        passenger_count,
-        is_urban=False
+        self, segments, total_duration_min, total_distance_km,
+        vehicle_name, passenger_count, is_urban=False
     ):
-        """
-        Scores energy by iterating over each segment individually.
-        Each segment uses its own grade — far more accurate than
-        using one average grade for the whole route.
-        """
-        car        = self.ev_profiles.get(vehicle_name, self.ev_profiles["Tata Nexon EV"])
+        car        = self.ev_profiles.get(vehicle_name, self._fallback_profile)
         total_mass = car["base_mass_kg"] + (passenger_count * 75)
-
-        # Estimate average speed from total distance/time
         avg_speed_ms = (
             (total_distance_km * 1000) / (total_duration_min * 60)
             if total_duration_min > 0 else 11.11
         )
 
-        # Auxiliary energy for full route
-        E_aux = (total_duration_min * 60) * (car["p_aux"] * 1000)
-
-        # Sum energy across all segments
+        E_aux      = (total_duration_min * 60) * (car["p_aux"] * 1000)
         E_segments = 0.0
+
         for seg in segments:
             dist_m = seg["distance_km"] * 1000
             if dist_m == 0:
                 continue
             E_segments += self._segment_energy_joules(
-                car, total_mass, dist_m,
-                avg_speed_ms,
-                seg["grade_percent"],
-                is_urban
+                car, total_mass, dist_m, avg_speed_ms,
+                seg["grade_percent"], is_urban
             )
 
-        E_total_kWh = (E_segments + E_aux) / 3_600_000
-        return round(E_total_kWh, 4)
+        return round((E_segments + E_aux) / 3_600_000, 4)
 
     # ------------------------------------------------------------------
-    # FALLBACK — whole-route scoring (used when segments unavailable)
+    # Fallback whole-route scoring
     # ------------------------------------------------------------------
 
     def calculate_smart_energy(
-        self,
-        distance_km,
-        duration_min,
-        vehicle_name,
-        passenger_count,
-        grade_percent=0.0,
-        is_urban=False
+        self, distance_km, duration_min, vehicle_name,
+        passenger_count, grade_percent=0.0, is_urban=False
     ):
-        car        = self.ev_profiles.get(vehicle_name, self.ev_profiles["Tata Nexon EV"])
+        car        = self.ev_profiles.get(vehicle_name, self._fallback_profile)
         total_mass = car["base_mass_kg"] + (passenger_count * 75)
         distance_m = distance_km * 1000
         avg_speed_ms = (distance_m / (duration_min * 60)) if duration_min > 0 else 11.11
@@ -150,25 +143,19 @@ class EVRouteOptimizer:
         )
         E_aux  = (duration_min * 60) * (car["p_aux"] * 1000)
 
-        E_total_kWh = (E_main + E_aux) / 3_600_000
-        return round(E_total_kWh, 4)
+        return round((E_main + E_aux) / 3_600_000, 4)
 
     # ------------------------------------------------------------------
-    # PUBLIC API METHODS
+    # Public API methods
     # ------------------------------------------------------------------
 
     def evaluate_alternatives(self, routes_data, vehicle_name, passenger_count):
         scores = []
         for r in routes_data:
-            # Use segmented scoring if segments provided, else fallback
             if r.get("segments"):
                 score = self.calculate_smart_energy_segmented(
-                    segments           = r["segments"],
-                    total_duration_min = r.get("duration", 0),
-                    total_distance_km  = r.get("distance", 0),
-                    vehicle_name       = vehicle_name,
-                    passenger_count    = passenger_count,
-                    is_urban           = r.get("is_urban", False)
+                    r["segments"], r.get("duration", 0), r.get("distance", 0),
+                    vehicle_name, passenger_count, r.get("is_urban", False)
                 )
             else:
                 score = self.calculate_smart_energy(
@@ -180,25 +167,18 @@ class EVRouteOptimizer:
         return scores
 
     def get_optimal_route(
-        self,
-        status,
-        dist_from_map,
-        vehicle_name    = "Tata Nexon EV",
-        passenger_count = 1,
-        grade_percent   = 0.0,
-        is_urban        = False
+        self, status, dist_from_map,
+        vehicle_name="Tata Nexon EV", passenger_count=1,
+        grade_percent=0.0, is_urban=False
     ):
         try:
             dist = float(dist_from_map)
         except (ValueError, TypeError):
             dist = 0.0
 
-        duration_min = (dist / 40.0) * 60 if dist > 0 else 0
-
-        # Live dashboard uses fallback (no segments available)
-        energy = self.calculate_smart_energy(
-            dist, duration_min, vehicle_name, passenger_count,
-            grade_percent, is_urban
+        duration_min   = (dist / 40.0) * 60 if dist > 0 else 0
+        energy         = self.calculate_smart_energy(
+            dist, duration_min, vehicle_name, passenger_count, grade_percent, is_urban
         )
 
         DANGER_STATES  = {"Drowsy", "Head Drop"}

@@ -52,9 +52,9 @@ def evaluate_routes():
         ]
     }
     """
-    data          = request.json
-    routes_data   = data.get('routes', [])
-    vehicle_name  = data.get('vehicle_name', 'Tata Nexon EV')
+    data = request.json
+    routes_data = data.get('routes', [])
+    vehicle_name = data.get('vehicle_name', 'Tata Nexon EV')
 
     try:
         passenger_count = int(data.get('passenger_count', 1))
@@ -106,6 +106,12 @@ def get_system_data():
         "safety_warning": route_data.get("safety_warning"),  # None or warning dict
         "routes":         route_data
     })
+
+
+@app.route('/get_vehicles')
+def get_vehicles():
+    """Returns all vehicle names loaded from ev_profiles.csv"""
+    return jsonify({"vehicles": optimizer.get_vehicle_names()})
 
 
 @app.route('/nearest_station')

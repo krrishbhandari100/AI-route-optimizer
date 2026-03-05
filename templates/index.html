@@ -29,6 +29,8 @@
         .route-card .savings { color: #f39c12; font-weight: bold; }
         #stop-box { display: none; background: #1a1a2e; border: 1px solid #e74c3c; border-radius: 8px; padding: 10px; margin-top: 10px; text-align: left; font-size: 12px; }
         #stop-box h4 { color: #e74c3c; margin: 0 0 5px 0; font-size: 13px; }
+        #turn-alert { display: none; position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 1001; background: rgba(0,0,0,0.92); border: 2px solid #3498db; border-radius: 12px; padding: 14px 24px; font-size: 16px; font-weight: bold; color: white; text-align: center; min-width: 280px; }
+        #turn-alert .turn-dist { font-size: 12px; color: #3498db; margin-top: 4px; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
     </style>
 </head>
@@ -57,9 +59,7 @@
         <div id="controls">
             <div class="vehicle-controls">
                 <select id="vehicleModel">
-                    <option value="Tata Nexon EV">Tata Nexon EV</option>
-                    <option value="Tesla Model 3">Tesla Model 3</option>
-                    <option value="Mahindra XUV400">Mahindra XUV400</option>
+                    <option value="">Loading vehicles...</option>
                 </select>
                 <input type="number" id="passengerCount" value="1" min="1" max="5" title="Passengers">
             </div>
@@ -76,9 +76,15 @@
             </button>
         </div>
         <div id="map-canvas"></div>
+        <div id="turn-alert">
+            <div id="turn-text">--</div>
+            <div class="turn-dist" id="turn-dist"></div>
+        </div>
     </div>
 
     <audio id="alarm-sound" loop src="{{ url_for('static', filename='alarm.mp3') }}"></audio>
+
+    <!-- Leaflet MUST load before any JS that uses L or map -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
@@ -98,14 +104,110 @@
             });
         }
 
-        // ── Map Setup ──────────────────────────────────────────────
-        var map = L.map('map-canvas').setView([12.9344, 80.2130], 11);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        // ── Map Setup (declared FIRST so navigation code can use it) ──
+        var map            = L.map('map-canvas').setView([12.9344, 80.2130], 11);
         var routePathLayer = L.layerGroup().addTo(map);
         var markerLayer    = L.layerGroup().addTo(map);
         var currentRouteDist = null;
 
-        // ── Search ─────────────────────────────────────────────────
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        // ── Load vehicles from dataset on page load ────────────────
+        async function loadVehicles() {
+            try {
+                const res    = await fetch('/get_vehicles');
+                const data   = await res.json();
+                const select = document.getElementById('vehicleModel');
+                select.innerHTML = "";
+                data.vehicles.forEach(v => {
+                    const opt   = document.createElement('option');
+                    opt.value   = v;
+                    opt.text    = v;
+                    if (v === "Tata Nexon EV") opt.selected = true;
+                    select.appendChild(opt);
+                });
+            } catch(e) { console.warn("Could not load vehicles:", e); }
+        }
+        loadVehicles();
+
+        // ── Navigation State ───────────────────────────────────────
+        var currentSteps     = [];
+        var positionMarker   = null;
+        var watchId          = null;
+        var navigationActive = false;
+
+        // ── Haversine in metres ────────────────────────────────────
+        function haversineM(lat1, lon1, lat2, lon2) {
+            const R    = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a    = Math.sin(dLat/2)**2 +
+                         Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) *
+                         Math.sin(dLon/2)**2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        // ── Start navigation ───────────────────────────────────────
+        function startNavigation(steps) {
+            currentSteps     = [...steps];
+            navigationActive = true;
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+            watchId = navigator.geolocation.watchPosition(
+                pos => updatePosition(pos.coords.latitude, pos.coords.longitude),
+                err => console.warn("GPS error:", err.message),
+                { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+            );
+        }
+
+        // ── Update live position marker + turn alerts ──────────────
+        function updatePosition(lat, lon) {
+            // Create or move position marker
+            if (!positionMarker) {
+                positionMarker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        html: '<div style="font-size:26px">📍</div>',
+                        className: "", iconSize: [30,30], iconAnchor: [15,15]
+                    })
+                }).addTo(map);
+            } else {
+                positionMarker.setLatLng([lat, lon]);
+            }
+
+            // Pan map to follow current position
+            map.panTo([lat, lon]);
+
+            if (currentSteps.length === 0) {
+                document.getElementById('turn-alert').style.display = "none";
+                return;
+            }
+
+            // Find nearest upcoming step
+            let nearestDist = Infinity;
+            let nearestIdx  = 0;
+            currentSteps.forEach((step, i) => {
+                const d = haversineM(lat, lon, step.lat, step.lon);
+                if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
+            });
+
+            const alertBox = document.getElementById('turn-alert');
+            const turnText = document.getElementById('turn-text');
+            const turnDist = document.getElementById('turn-dist');
+
+            if (nearestDist < 150) {
+                alertBox.style.display = "block";
+                turnText.textContent   = currentSteps[nearestIdx].text;
+                turnDist.textContent   = nearestDist < 30 ? "Turn now!" : `In ${Math.round(nearestDist)}m`;
+
+                // Remove step once passed
+                if (nearestDist < 20) {
+                    currentSteps.splice(nearestIdx, 1);
+                }
+            } else {
+                alertBox.style.display = "none";
+            }
+        }
+
+        // ── Location Search ────────────────────────────────────────
         let timer;
         function debSearch(i, l) { clearTimeout(timer); timer = setTimeout(() => search(i, l), 600); }
 
@@ -120,10 +222,10 @@
                 d.className = "sug-item";
                 d.innerText = item.display_name;
                 d.onclick = () => {
-                    input.value = item.display_name;
+                    input.value       = item.display_name;
                     input.dataset.lat = item.lat;
                     input.dataset.lon = item.lon;
-                    list.innerHTML = "";
+                    list.innerHTML    = "";
                 };
                 list.appendChild(d);
             });
@@ -140,6 +242,10 @@
             routePathLayer.clearLayers();
             markerLayer.clearLayers();
 
+            // Stop previous navigation
+            if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+            document.getElementById('turn-alert').style.display = "none";
+
             const vehicle    = document.getElementById('vehicleModel').value;
             const passengers = document.getElementById('passengerCount').value;
             const urban      = document.getElementById('urbanMode').checked ? '1' : '0';
@@ -153,7 +259,7 @@
                 const routes  = data.routes;
                 const bestKwh = routes[0].energy_kwh;
 
-                // ── Draw routes on map ─────────────────────────────
+                // ── Draw routes ────────────────────────────────────
                 routes.forEach((route, i) => {
                     const isBest  = i === 0;
                     const latlngs = route.geometry.map(pt => [pt[0], pt[1]]);
@@ -170,7 +276,7 @@
                     );
                 });
 
-                // ── Vehicle emoji icon at origin ───────────────────
+                // ── Vehicle icon at origin ─────────────────────────
                 L.marker([parseFloat(s.lat), parseFloat(s.lon)], {
                     icon: makeVehicleIcon(vehicle)
                 }).addTo(markerLayer).bindPopup(`📍 Start — ${vehicle}`);
@@ -182,16 +288,28 @@
                 currentRouteDist = routes[0].distance_km;
                 document.getElementById('dist-txt').innerText = "Distance: " + routes[0].distance_km + " km";
                 document.getElementById('cons-txt').innerText = "Energy: "   + routes[0].energy_kwh.toFixed(3) + " kWh";
-                document.getElementById('route-info').innerText =
-                    routes.length > 1 ? `${routes.length} routes found — Best in green` : "Single route available";
+
+                // ── Start navigation if steps available ────────────
+                if (routes[0].steps && routes[0].steps.length > 0) {
+                    startNavigation(routes[0].steps);
+                    document.getElementById('route-info').innerText =
+                        routes.length > 1
+                            ? `${routes.length} routes found — Navigation started`
+                            : "Single route — Navigation started";
+                } else {
+                    document.getElementById('route-info').innerText =
+                        routes.length > 1
+                            ? `${routes.length} routes found — Best in green`
+                            : "Single route available";
+                }
 
                 // ── Energy comparison cards ────────────────────────
                 buildComparisonCards(routes, bestKwh);
-
                 handleSafetyWarning(data.safety_warning);
 
             } catch (err) {
                 document.getElementById('route-info').innerText = "Failed to fetch routes.";
+                console.error(err);
             }
         }
 
@@ -240,7 +358,7 @@
             }
         }
 
-        // ── Live Sync ──────────────────────────────────────────────
+        // ── Live Sync (every 1s) ───────────────────────────────────
         const alarm = document.getElementById('alarm-sound');
         let canPlay = false;
         document.addEventListener('click', () => canPlay = true, { once: true });
@@ -267,7 +385,7 @@
                     handleSafetyWarning(data.safety_warning);
                     showSuggestedStop(data.routes && data.routes.suggested_stop);
                 }
-            } catch (e) {}
+            } catch(e) {}
         }
 
         setInterval(sync, 1000);

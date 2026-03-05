@@ -1,21 +1,26 @@
-vehicle_name,base_mass_kg,drag_cd,frontal_area_m2,crr,regen_efficiency,drivetrain_efficiency,p_aux
-Tata Nexon EV,1445,0.33,2.45,0.012,0.65,0.85,0.010
-Tata Punch EV,1305,0.34,2.30,0.012,0.63,0.84,0.010
-Tata Tiago EV,1175,0.32,2.15,0.011,0.62,0.83,0.009
-Tata Curvv EV,1550,0.29,2.50,0.012,0.66,0.86,0.011
-Mahindra XUV400,1550,0.35,2.60,0.013,0.60,0.84,0.011
-Mahindra BE6,1900,0.28,2.55,0.011,0.70,0.88,0.012
-MG ZS EV,1620,0.34,2.52,0.013,0.62,0.84,0.011
-MG Windsor EV,1640,0.31,2.48,0.012,0.64,0.85,0.011
-BYD Atto 3,1750,0.29,2.50,0.011,0.68,0.87,0.012
-BYD Seal,1885,0.219,2.25,0.010,0.72,0.90,0.012
-Tesla Model 3,1629,0.219,2.22,0.010,0.70,0.90,0.012
-Tesla Model Y,1979,0.230,2.60,0.011,0.70,0.90,0.013
-Hyundai Ioniq 6,1825,0.210,2.20,0.010,0.72,0.91,0.011
-Hyundai Ioniq 5,1985,0.288,2.60,0.011,0.68,0.88,0.012
-Kia EV6,1875,0.280,2.42,0.011,0.68,0.88,0.012
-Volkswagen ID.4,2124,0.280,2.59,0.012,0.67,0.87,0.012
-BMW iX3,2185,0.290,2.65,0.012,0.68,0.88,0.013
-Mercedes EQA,2040,0.300,2.52,0.012,0.66,0.87,0.012
-Audi Q4 e-tron,2135,0.280,2.58,0.012,0.67,0.87,0.012
-Nissan Leaf,1579,0.290,2.32,0.012,0.65,0.85,0.010
+vehicle_name,base_mass_kg,drag_cd,frontal_area_m2,crr,regen_efficiency,drivetrain_efficiency,p_aux,cd_source,mass_source,crr_source
+Tesla Model 3,1629,0.23,2.22,0.01,0.7,0.9,0.012,mpgomatic.com EV Drag Coefficient List 2022,Tesla Official Specs,SAE J2452 standard - low rolling resistance EV tire
+Tesla Model Y,1979,0.23,2.6,0.011,0.7,0.89,0.013,Tesla Official Specs,Tesla Official Specs,SAE J2452 standard - low rolling resistance EV tire
+Tesla Model S,2162,0.208,2.35,0.01,0.72,0.91,0.014,mpgomatic.com EV Drag Coefficient List 2022,Tesla Official Specs,SAE J2452 standard - low rolling resistance EV tire
+Porsche Taycan,2135,0.22,2.31,0.01,0.72,0.92,0.014,mpgomatic.com EV Drag Coefficient List 2022,Porsche Official Specs,SAE J2452 standard - performance EV tire
+BMW i4 eDrive40,2050,0.24,2.3,0.011,0.7,0.9,0.013,mpgomatic.com EV Drag Coefficient List 2022,BMW Official Specs,SAE J2452 standard - low rolling resistance EV tire
+Hyundai Ioniq 5,1985,0.288,2.6,0.011,0.68,0.88,0.012,mpgomatic.com EV Drag Coefficient List 2022,Hyundai Official Specs,SAE J2452 standard - mid rolling resistance
+Hyundai Ioniq 6,1825,0.21,2.2,0.01,0.72,0.91,0.011,Hyundai Official Press Release,Hyundai Official Specs,SAE J2452 standard - low rolling resistance EV tire
+Kia EV6,1875,0.28,2.42,0.011,0.68,0.88,0.012,mpgomatic.com EV Drag Coefficient List 2022,Kia Official Specs,SAE J2452 standard - mid rolling resistance
+Nissan Leaf,1579,0.28,2.32,0.012,0.65,0.85,0.01,mpgomatic.com EV Drag Coefficient List 2022,Nissan Official Specs,SAE J2452 standard - standard EV tire
+Volkswagen ID.4,2124,0.28,2.59,0.012,0.67,0.87,0.012,Volkswagen Official Specs,Volkswagen Official Specs,SAE J2452 standard - mid rolling resistance
+Chevrolet Bolt EV,1616,0.308,2.32,0.012,0.65,0.85,0.01,mpgomatic.com EV Drag Coefficient List 2022,GM Official Specs,SAE J2452 standard - standard EV tire
+Ford Mustang Mach-E,2066,0.3,2.68,0.012,0.66,0.86,0.012,mpgomatic.com EV Drag Coefficient List 2022,Ford Official Specs,SAE J2452 standard - mid rolling resistance
+Audi e-tron GT,2347,0.24,2.4,0.011,0.7,0.89,0.014,mpgomatic.com EV Drag Coefficient List 2022,Audi Official Specs,SAE J2452 standard - performance EV tire
+Polestar 2,2060,0.278,2.35,0.011,0.68,0.88,0.012,mpgomatic.com EV Drag Coefficient List 2022,Polestar Official Specs,SAE J2452 standard - mid rolling resistance
+Lucid Air,2104,0.21,2.25,0.01,0.73,0.92,0.013,mpgomatic.com EV Drag Coefficient List 2022,Lucid Official Specs,SAE J2452 standard - low rolling resistance EV tire
+BYD Seal,1885,0.219,2.25,0.01,0.72,0.9,0.012,BYD Official Press Release,BYD Official Specs,SAE J2452 standard - low rolling resistance EV tire
+BYD Atto 3,1750,0.29,2.5,0.011,0.68,0.87,0.012,BYD Official Specs,BYD Official Specs,SAE J2452 standard - mid rolling resistance
+Tata Nexon EV,1445,0.33,2.45,0.012,0.65,0.85,0.01,Tata Motors Technical Brochure,Tata Motors Official Specs,SAE J2452 standard - standard tire
+Tata Punch EV,1305,0.34,2.3,0.012,0.63,0.84,0.01,Tata Motors Technical Brochure,Tata Motors Official Specs,SAE J2452 standard - standard tire
+Tata Tiago EV,1175,0.32,2.15,0.011,0.62,0.83,0.009,Tata Motors Technical Brochure,Tata Motors Official Specs,SAE J2452 standard - standard tire
+Tata Curvv EV,1550,0.29,2.5,0.012,0.66,0.86,0.011,Tata Motors Technical Brochure,Tata Motors Official Specs,SAE J2452 standard - standard tire
+Mahindra XUV400,1550,0.35,2.6,0.013,0.6,0.84,0.011,Mahindra Official Specs,Mahindra Official Specs,SAE J2452 standard - standard SUV tire
+Mahindra BE6,1900,0.28,2.55,0.011,0.7,0.88,0.012,Mahindra Official Press Release,Mahindra Official Specs,SAE J2452 standard - low rolling resistance EV tire
+MG ZS EV,1620,0.34,2.52,0.013,0.62,0.84,0.011,MG Official Specs,MG Official Specs,SAE J2452 standard - standard SUV tire
+MG Windsor EV,1640,0.31,2.48,0.012,0.64,0.85,0.011,MG Official Specs,MG Official Specs,SAE J2452 standard - standard tire

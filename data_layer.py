@@ -18,7 +18,7 @@ def fetch_routes(origin_lat, origin_lon, dest_lat, dest_lon):
     url    = f"{OSRM_BASE}/route/v1/driving/{coords}"
     params = {
         "alternatives": MAX_ALTERNATIVES,
-        "steps":        "false",
+        "steps":        "true",
         "geometries":   "geojson",
         "overview":     "full"
     }
@@ -35,12 +35,44 @@ def fetch_routes(origin_lat, origin_lon, dest_lat, dest_lon):
     routes = []
     for i, r in enumerate(data["routes"]):
         coords_latlon = [(pt[1], pt[0]) for pt in r["geometry"]["coordinates"]]
+
+        # Extract turn-by-turn steps from all legs
+        steps = []
+        for leg in r.get("legs", []):
+            for step in leg.get("steps", []):
+                maneuver = step.get("maneuver", {})
+                instruction = step.get("name", "")
+                maneuver_type = maneuver.get("type", "")
+                maneuver_mod  = maneuver.get("modifier", "")
+                location      = maneuver.get("location", [0, 0])  # [lon, lat]
+                distance_m    = step.get("distance", 0)
+
+                # Build human readable instruction
+                if maneuver_type == "turn":
+                    text = f"Turn {maneuver_mod} onto {instruction}" if instruction else f"Turn {maneuver_mod}"
+                elif maneuver_type == "depart":
+                    text = f"Head {maneuver_mod} on {instruction}" if instruction else "Depart"
+                elif maneuver_type == "arrive":
+                    text = "You have arrived at your destination"
+                elif maneuver_type == "roundabout":
+                    text = f"Enter roundabout, take exit {maneuver.get('exit', '')}"
+                else:
+                    text = f"{maneuver_type.capitalize()} {maneuver_mod} {instruction}".strip()
+
+                steps.append({
+                    "text":       text,
+                    "lat":        location[1],
+                    "lon":        location[0],
+                    "distance_m": round(distance_m)
+                })
+
         routes.append({
             "index":        i,
             "distance_km":  round(r["distance"] / 1000, 3),
             "duration_min": round(r["duration"] / 60, 2),
             "geometry":     coords_latlon,
-            "summary":      f"Route {i + 1}"
+            "summary":      f"Route {i + 1}",
+            "steps":        steps
         })
     return routes
 
