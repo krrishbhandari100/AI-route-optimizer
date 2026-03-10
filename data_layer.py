@@ -22,12 +22,15 @@ def fetch_routes(origin_lat, origin_lon, dest_lat, dest_lon):
         "geometries":   "geojson",
         "overview":     "full"
     }
-    try:
-        resp = requests.get(url, params=params, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-    except requests.RequestException as e:
-        raise RuntimeError(f"OSRM request failed: {e}")
+    for attempt in range(3):
+        try:
+            resp = requests.get(url, params=params, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        except requests.RequestException as e:
+            if attempt == 2:
+                raise RuntimeError(f"OSRM request failed after 3 attempts: {e}")
 
     if data.get("code") != "Ok" or not data.get("routes"):
         raise RuntimeError("OSRM returned no valid routes.")

@@ -1,227 +1,607 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AI EV Optimizer - Real-Time Optimization</title>
+    <title>EV Route Optimizer</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; display: flex; background: #0b0b0b; color: white; font-family: sans-serif; height: 100vh; overflow: hidden; }
-        #side { width: 30%; padding: 20px; border-right: 1px solid #333; background: #151515; text-align: center; overflow-y: auto; }
-        #map-panel { width: 70%; position: relative; }
+        :root {
+            --bg:       #f0f4f8;
+            --panel:    #ffffff;
+            --border:   #dde3ea;
+            --accent:   #0284c7;
+            --accent2:  #3b82f6;
+            --danger:   #ef4444;
+            --text:     #1e293b;
+            --muted:    #64748b;
+            --card:     #f8fafc;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            display: flex;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Rajdhani', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ── SIDEBAR ───────────────────────────────────────────── */
+        #side {
+            width: 320px;
+            min-width: 320px;
+            background: var(--panel);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #side-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            background: var(--accent);
+        }
+
+        #side-header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #ffffff;
+        }
+
+        #side-header p {
+            font-size: 12px;
+            color: rgba(255,255,255,0.7);
+            font-family: 'IBM Plex Mono', monospace;
+            margin-top: 2px;
+        }
+
+        /* Turn instruction box — top of sidebar */
+        #turn-box {
+            display: none;
+            margin: 12px 16px 0;
+            background: var(--accent2);
+            border-radius: 10px;
+            padding: 14px 16px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        #turn-icon   { font-size: 28px; float: left; margin-right: 12px; line-height: 1; }
+        #turn-text   { font-size: 15px; font-weight: 600; color: white; line-height: 1.3; }
+        #turn-dist   { font-size: 12px; color: rgba(255,255,255,0.75); font-family: 'IBM Plex Mono', monospace; margin-top: 3px; }
+
+        #side-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        #side-scroll::-webkit-scrollbar { width: 4px; }
+        #side-scroll::-webkit-scrollbar-track { background: transparent; }
+        #side-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+        /* Stats row */
+        .stats-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .stat-card .label {
+            font-size: 10px;
+            color: var(--muted);
+            font-family: 'IBM Plex Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-card .value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--accent);
+            margin-top: 2px;
+        }
+
+        .stat-card .unit {
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        /* Route cards */
+        .section-title {
+            font-size: 11px;
+            color: var(--muted);
+            font-family: 'IBM Plex Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 8px;
+        }
+
+        .route-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 8px;
+            transition: border-color 0.2s;
+        }
+
+        .route-card.best {
+            border-color: var(--accent);
+            background: rgba(0, 212, 170, 0.05);
+        }
+
+        .route-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .route-label { font-size: 14px; font-weight: 700; }
+        .best-badge {
+            background: var(--accent);
+            color: #000;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .route-metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            font-size: 12px;
+            color: var(--muted);
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .route-metrics span { color: var(--text); }
+
+        .savings-tag {
+            margin-top: 8px;
+            font-size: 11px;
+            color: #f59e0b;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .efficient-tag {
+            margin-top: 8px;
+            font-size: 11px;
+            color: var(--accent);
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        /* ── MAP PANEL ─────────────────────────────────────────── */
+        #map-panel { flex: 1; position: relative; }
         #map-canvas { height: 100%; width: 100%; }
-        .video { width: 100%; border-radius: 10px; border: 2px solid #444; }
-        #status-bar { padding: 15px; margin-top: 15px; border-radius: 8px; font-weight: bold; }
-        .safe   { background: #2ecc71; }
-        .danger { background: #e74c3c; animation: pulse 1s infinite; }
-        #controls { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(0,0,0,0.85); padding: 15px; border-radius: 10px; width: 340px; }
-        input, select { width: 100%; padding: 10px; margin-bottom: 5px; background: #222; color: white; border: 1px solid #555; border-radius: 5px; box-sizing: border-box; }
-        .vehicle-controls { display: flex; gap: 5px; margin-bottom: 10px; }
-        .vehicle-controls select { flex: 2; margin-bottom: 0; }
-        .vehicle-controls input  { flex: 1; margin-bottom: 0; text-align: center; }
-        .suggestions { background: #222; position: absolute; width: 90%; z-index: 2000; max-height: 150px; overflow-y: auto; }
-        .sug-item { padding: 8px; cursor: pointer; border-bottom: 1px solid #333; font-size: 12px; }
-        #warning-banner { display: none; background: #e74c3c; color: white; font-weight: bold; padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 13px; }
-        #energy-comparison { margin-top: 15px; text-align: left; }
-        #energy-comparison h4 { color: #3498db; margin-bottom: 8px; font-size: 13px; }
-        .route-card { background: #1e1e1e; border: 1px solid #333; border-radius: 8px; padding: 10px; margin-bottom: 8px; font-size: 12px; }
-        .route-card.best { border-color: #2ecc71; }
-        .route-card .badge { float: right; background: #2ecc71; color: black; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: bold; }
-        .route-card .savings { color: #f39c12; font-weight: bold; }
-        #stop-box { display: none; background: #1a1a2e; border: 1px solid #e74c3c; border-radius: 8px; padding: 10px; margin-top: 10px; text-align: left; font-size: 12px; }
-        #stop-box h4 { color: #e74c3c; margin: 0 0 5px 0; font-size: 13px; }
-        #turn-alert { display: none; position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 1001; background: rgba(0,0,0,0.92); border: 2px solid #3498db; border-radius: 12px; padding: 14px 24px; font-size: 16px; font-weight: bold; color: white; text-align: center; min-width: 280px; }
-        #turn-alert .turn-dist { font-size: 12px; color: #3498db; margin-top: 4px; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+
+        /* ── CONTROLS OVERLAY ──────────────────────────────────── */
+        #controls {
+            position: absolute;
+            top: 12px; left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.97);
+            border: 1px solid var(--border);
+            padding: 16px;
+            border-radius: 14px;
+            width: 360px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .ctrl-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        select, input[type=text], input[type=number] {
+            background: #ffffff;
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 9px 12px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 14px;
+            width: 100%;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        select:focus, input:focus { border-color: var(--accent2); }
+
+        input[type=number] { width: 70px; min-width: 70px; text-align: center; }
+
+        .suggestions {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            position: absolute;
+            width: calc(100% - 32px);
+            z-index: 2000;
+            max-height: 160px;
+            overflow-y: auto;
+            border-radius: 6px;
+            margin-top: 2px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .sug-item {
+            padding: 9px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+            color: var(--text);
+        }
+
+        .sug-item:hover { background: #f0f4f8; }
+
+        .ctrl-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--muted);
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
+        .ctrl-check input { width: auto; }
+
+        #go-btn {
+            width: 100%;
+            padding: 11px;
+            background: var(--accent);
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        #go-btn:hover  { background: #0369a1; }
+        #go-btn:active { transform: scale(0.98); }
+
+        #go-btn.loading {
+            background: var(--muted);
+            cursor: not-allowed;
+        }
+
+        /* ── STATUS BAR ────────────────────────────────────────── */
+        #status-bar {
+            position: absolute;
+            bottom: 16px; right: 16px;
+            z-index: 1000;
+            background: rgba(255,255,255,0.95);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 12px;
+            font-family: 'IBM Plex Mono', monospace;
+            color: var(--muted);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        #status-bar.navigating {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* ── ARROW MARKER ──────────────────────────────────────── */
+        .nav-arrow {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.3s ease;
+        }
+
+        .nav-arrow svg {
+            filter: drop-shadow(0 2px 6px rgba(2,132,199,0.4));
+        }
     </style>
 </head>
 <body>
-    <div id="side">
-        <h2>Driver Safety</h2>
-        <img class="video" src="{{ url_for('video_feed') }}">
-        <div id="status-bar" class="safe">READY</div>
-        <div id="warning-banner"></div>
 
-        <div id="stop-box">
-            <h4>⚠️ Suggested Stop</h4>
-            <p id="stop-name" style="margin:0; color:white;"></p>
-        </div>
-
-        <div style="text-align:left; margin-top:15px;">
-            <p id="dist-txt">Distance: -- km</p>
-            <p id="cons-txt" style="color:#2ecc71">Energy: -- kWh</p>
-            <p id="route-info" style="font-size:12px; color:#3498db;"></p>
-        </div>
-
-        <div id="energy-comparison"></div>
+<!-- ── SIDEBAR ── -->
+<div id="side">
+    <div id="side-header">
+        <h1>⚡ EV ROUTE OPTIMIZER</h1>
+        <p>// physics-based energy model</p>
     </div>
 
-    <div id="map-panel">
-        <div id="controls">
-            <div class="vehicle-controls">
-                <select id="vehicleModel">
-                    <option value="">Loading vehicles...</option>
-                </select>
-                <input type="number" id="passengerCount" value="1" min="1" max="5" title="Passengers">
+    <!-- Turn instruction at top of sidebar -->
+    <div id="turn-box">
+        <div id="turn-icon">↑</div>
+        <div>
+            <div id="turn-text">Calculating...</div>
+            <div id="turn-dist"></div>
+        </div>
+    </div>
+
+    <div id="side-scroll">
+        <!-- Stats -->
+        <div class="stats-row" id="stats-row" style="display:none">
+            <div class="stat-card">
+                <div class="label">Distance</div>
+                <div class="value" id="val-dist">--</div>
+                <div class="unit">km</div>
             </div>
-            <input type="text" id="start" placeholder="Start Location" oninput="debSearch(this, 's-list')">
+            <div class="stat-card">
+                <div class="label">Energy</div>
+                <div class="value" id="val-energy">--</div>
+                <div class="unit">kWh</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Duration</div>
+                <div class="value" id="val-dur">--</div>
+                <div class="unit">min</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Avg Grade</div>
+                <div class="value" id="val-grade">--</div>
+                <div class="unit">%</div>
+            </div>
+        </div>
+
+        <!-- Route cards -->
+        <div id="route-cards"></div>
+
+        <!-- Status text -->
+        <p id="route-info" style="font-size:12px; color:var(--muted); font-family:'IBM Plex Mono',monospace; margin-top:8px;"></p>
+    </div>
+</div>
+
+<!-- ── MAP PANEL ── -->
+<div id="map-panel">
+    <div id="controls">
+        <div class="ctrl-row">
+            <select id="vehicleModel"><option value="">Loading vehicles...</option></select>
+            <input type="number" id="passengerCount" value="1" min="1" max="8" title="Passengers">
+        </div>
+        <div style="position:relative">
+            <input type="text" id="start" placeholder="📍 Start location" oninput="debSearch(this,'s-list')">
             <div id="s-list" class="suggestions"></div>
-            <input type="text" id="end" placeholder="Destination" oninput="debSearch(this, 'e-list')">
+        </div>
+        <div style="position:relative; margin-top:8px;">
+            <input type="text" id="end" placeholder="🏁 Destination" oninput="debSearch(this,'e-list')">
             <div id="e-list" class="suggestions"></div>
-            <label style="font-size:12px; color:#aaa;">
-                <input type="checkbox" id="urbanMode" style="width:auto; margin-right:5px;">
-                Urban / City Driving
-            </label>
-            <button onclick="go()" style="width:100%; padding:10px; margin-top:8px; background:#3498db; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">
-                OPTIMIZE ROUTE
-            </button>
         </div>
-        <div id="map-canvas"></div>
-        <div id="turn-alert">
-            <div id="turn-text">--</div>
-            <div class="turn-dist" id="turn-dist"></div>
-        </div>
+        <label class="ctrl-check" style="margin-top:10px;">
+            <input type="checkbox" id="urbanMode"> Urban / City Driving
+        </label>
+        <button id="go-btn" onclick="go()">OPTIMIZE ROUTE</button>
     </div>
 
-    <audio id="alarm-sound" loop src="{{ url_for('static', filename='alarm.mp3') }}"></audio>
+    <div id="map-canvas"></div>
 
-    <!-- Leaflet MUST load before any JS that uses L or map -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <div id="status-bar">READY</div>
+</div>
 
-    <script>
-        // ── Vehicle Icons ──────────────────────────────────────────
-        const vehicleIcons = {
-            "Tata Nexon EV":   "🚙",
-            "Tesla Model 3":   "🏎️",
-            "Mahindra XUV400": "🚗"
-        };
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // ── Vehicle emoji icons ────────────────────────────────────────
+    const vehicleIcons = {
+        "Tata Nexon EV":   "🚙",
+        "Tesla Model 3":   "🏎️",
+        "Mahindra XUV400": "🚗",
+        "default":         "🚗"
+    };
 
-        function makeVehicleIcon(vehicle) {
-            return L.divIcon({
-                html:       `<div style="font-size:28px; line-height:1;">${vehicleIcons[vehicle] || "🚗"}</div>`,
-                className:  "",
-                iconSize:   [30, 30],
-                iconAnchor: [15, 15]
+    function getVehicleEmoji(v) {
+        return vehicleIcons[v] || vehicleIcons["default"];
+    }
+
+    // ── Map ────────────────────────────────────────────────────────
+    var map            = L.map('map-canvas', { zoomControl: false }).setView([12.9344, 80.2130], 11);
+    var routePathLayer = L.layerGroup().addTo(map);
+    var markerLayer    = L.layerGroup().addTo(map);
+
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // ── Load vehicles ──────────────────────────────────────────────
+    async function loadVehicles() {
+        try {
+            const res    = await fetch('/get_vehicles');
+            const data   = await res.json();
+            const select = document.getElementById('vehicleModel');
+            select.innerHTML = "";
+            data.vehicles.forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v; opt.text = v;
+                if (v === "Tata Nexon EV") opt.selected = true;
+                select.appendChild(opt);
             });
-        }
+        } catch(e) { console.warn("Could not load vehicles:", e); }
+    }
+    loadVehicles();
 
-        // ── Map Setup (declared FIRST so navigation code can use it) ──
-        var map            = L.map('map-canvas').setView([12.9344, 80.2130], 11);
-        var routePathLayer = L.layerGroup().addTo(map);
-        var markerLayer    = L.layerGroup().addTo(map);
-        var currentRouteDist = null;
+    // ── Navigation state ───────────────────────────────────────────
+    var currentSteps    = [];
+    var navMarker       = null;
+    var watchId         = null;
+    var lastLat         = null;
+    var lastLon         = null;
+    var currentBearing  = 0;
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    // ── Haversine ─────────────────────────────────────────────────
+    function haversineM(lat1, lon1, lat2, lon2) {
+        const R    = 6371000;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a    = Math.sin(dLat/2)**2 +
+                     Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) *
+                     Math.sin(dLon/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
 
-        // ── Load vehicles from dataset on page load ────────────────
-        async function loadVehicles() {
-            try {
-                const res    = await fetch('/get_vehicles');
-                const data   = await res.json();
-                const select = document.getElementById('vehicleModel');
-                select.innerHTML = "";
-                data.vehicles.forEach(v => {
-                    const opt   = document.createElement('option');
-                    opt.value   = v;
-                    opt.text    = v;
-                    if (v === "Tata Nexon EV") opt.selected = true;
-                    select.appendChild(opt);
-                });
-            } catch(e) { console.warn("Could not load vehicles:", e); }
-        }
-        loadVehicles();
+    // ── Bearing between two points ─────────────────────────────────
+    function bearing(lat1, lon1, lat2, lon2) {
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const y    = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
+        const x    = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) -
+                     Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos(dLon);
+        return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+    }
 
-        // ── Navigation State ───────────────────────────────────────
-        var currentSteps     = [];
-        var positionMarker   = null;
-        var watchId          = null;
-        var navigationActive = false;
+    // ── Arrow SVG icon ─────────────────────────────────────────────
+    function makeArrowIcon(degrees) {
+        return L.divIcon({
+            html: `<div class="nav-arrow" style="transform:rotate(${degrees}deg)">
+                     <svg width="36" height="36" viewBox="0 0 36 36">
+                       <polygon points="18,2 30,32 18,26 6,32" fill="#0284c7" stroke="#fff" stroke-width="1.5"/>
+                     </svg>
+                   </div>`,
+            className: "",
+            iconSize:  [36, 36],
+            iconAnchor:[18, 18]
+        });
+    }
 
-        // ── Haversine in metres ────────────────────────────────────
-        function haversineM(lat1, lon1, lat2, lon2) {
-            const R    = 6371000;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a    = Math.sin(dLat/2)**2 +
-                         Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) *
-                         Math.sin(dLon/2)**2;
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        }
+    // ── Turn direction icon ────────────────────────────────────────
+    function getTurnIcon(text) {
+        const t = text.toLowerCase();
+        if (t.includes("left"))         return "↰";
+        if (t.includes("right"))        return "↱";
+        if (t.includes("slight left"))  return "↖";
+        if (t.includes("slight right")) return "↗";
+        if (t.includes("u-turn"))       return "↩";
+        if (t.includes("arrive"))       return "🏁";
+        if (t.includes("roundabout"))   return "🔄";
+        return "↑";
+    }
 
-        // ── Start navigation ───────────────────────────────────────
-        function startNavigation(steps) {
-            currentSteps     = [...steps];
-            navigationActive = true;
-            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-            watchId = navigator.geolocation.watchPosition(
-                pos => updatePosition(pos.coords.latitude, pos.coords.longitude),
-                err => console.warn("GPS error:", err.message),
-                { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
-            );
-        }
+    // ── Start navigation ───────────────────────────────────────────
+    function startNavigation(steps) {
+        currentSteps = [...steps];
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+        watchId = navigator.geolocation.watchPosition(
+            pos => updatePosition(pos.coords.latitude, pos.coords.longitude),
+            err => {
+                console.warn("GPS:", err.message);
+                document.getElementById('route-info').innerText = "GPS unavailable — connect from phone on same WiFi";
+            },
+            { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+        );
+        setStatusBar("NAVIGATING", true);
+    }
 
-        // ── Update live position marker + turn alerts ──────────────
-        function updatePosition(lat, lon) {
-            // Create or move position marker
-            if (!positionMarker) {
-                positionMarker = L.marker([lat, lon], {
-                    icon: L.divIcon({
-                        html: '<div style="font-size:26px">📍</div>',
-                        className: "", iconSize: [30,30], iconAnchor: [15,15]
-                    })
-                }).addTo(map);
-            } else {
-                positionMarker.setLatLng([lat, lon]);
-            }
-
-            // Pan map to follow current position
-            map.panTo([lat, lon]);
-
-            if (currentSteps.length === 0) {
-                document.getElementById('turn-alert').style.display = "none";
-                return;
-            }
-
-            // Find nearest upcoming step
-            let nearestDist = Infinity;
-            let nearestIdx  = 0;
-            currentSteps.forEach((step, i) => {
-                const d = haversineM(lat, lon, step.lat, step.lon);
-                if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
-            });
-
-            const alertBox = document.getElementById('turn-alert');
-            const turnText = document.getElementById('turn-text');
-            const turnDist = document.getElementById('turn-dist');
-
-            if (nearestDist < 150) {
-                alertBox.style.display = "block";
-                turnText.textContent   = currentSteps[nearestIdx].text;
-                turnDist.textContent   = nearestDist < 30 ? "Turn now!" : `In ${Math.round(nearestDist)}m`;
-
-                // Remove step once passed
-                if (nearestDist < 20) {
-                    currentSteps.splice(nearestIdx, 1);
-                }
-            } else {
-                alertBox.style.display = "none";
+    // ── Update position ────────────────────────────────────────────
+    function updatePosition(lat, lon) {
+        // Calculate bearing from previous position
+        if (lastLat !== null) {
+            const d = haversineM(lastLat, lastLon, lat, lon);
+            if (d > 1) { // Only update bearing if moved more than 1m
+                currentBearing = bearing(lastLat, lastLon, lat, lon);
             }
         }
+        lastLat = lat; lastLon = lon;
 
-        // ── Location Search ────────────────────────────────────────
-        let timer;
-        function debSearch(i, l) { clearTimeout(timer); timer = setTimeout(() => search(i, l), 600); }
+        // Create or update arrow marker
+        const icon = makeArrowIcon(currentBearing);
+        if (!navMarker) {
+            navMarker = L.marker([lat, lon], { icon, zIndexOffset: 1000 }).addTo(map);
+        } else {
+            navMarker.setLatLng([lat, lon]);
+            navMarker.setIcon(icon);
+        }
 
-        async function search(input, listId) {
-            if (input.value.length < 3) return;
-            const res  = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${input.value}&limit=5`);
+        // Pan map to follow
+        map.panTo([lat, lon]);
+
+        // Find nearest upcoming step
+        if (currentSteps.length === 0) {
+            document.getElementById('turn-box').style.display = "none";
+            return;
+        }
+
+        let nearestDist = Infinity, nearestIdx = 0;
+        currentSteps.forEach((step, i) => {
+            const d = haversineM(lat, lon, step.lat, step.lon);
+            if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
+        });
+
+        const step    = currentSteps[nearestIdx];
+        const turnBox = document.getElementById('turn-box');
+
+        if (nearestDist < 200) {
+            turnBox.style.display = "block";
+            document.getElementById('turn-icon').textContent = getTurnIcon(step.text);
+            document.getElementById('turn-text').textContent = step.text;
+            document.getElementById('turn-dist').textContent = nearestDist < 30
+                ? "Turn now!"
+                : `In ${Math.round(nearestDist)} m`;
+
+            if (nearestDist < 20) currentSteps.splice(nearestIdx, 1);
+        } else {
+            turnBox.style.display = "none";
+        }
+
+        // Arrived
+        if (currentSteps.length === 0) {
+            document.getElementById('turn-box').style.display = "block";
+            document.getElementById('turn-icon').textContent = "🏁";
+            document.getElementById('turn-text').textContent = "You have arrived!";
+            document.getElementById('turn-dist').textContent = "";
+            setStatusBar("ARRIVED", false);
+        }
+    }
+
+    // ── Status bar ─────────────────────────────────────────────────
+    function setStatusBar(text, navigating) {
+        const bar = document.getElementById('status-bar');
+        bar.textContent = text;
+        bar.className   = navigating ? "navigating" : "";
+    }
+
+    // ── Location search ────────────────────────────────────────────
+    let timer;
+    function debSearch(input, listId) {
+        clearTimeout(timer);
+        timer = setTimeout(() => search(input, listId), 600);
+    }
+
+    async function search(input, listId) {
+        if (input.value.length < 3) return;
+        try {
+            const res  = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input.value)}&limit=5`);
             const data = await res.json();
             const list = document.getElementById(listId);
             list.innerHTML = "";
             data.forEach(item => {
-                let d = document.createElement("div");
+                const d = document.createElement("div");
                 d.className = "sug-item";
                 d.innerText = item.display_name;
-                d.onclick = () => {
+                d.onclick   = () => {
                     input.value       = item.display_name;
                     input.dataset.lat = item.lat;
                     input.dataset.lon = item.lon;
@@ -229,166 +609,128 @@
                 };
                 list.appendChild(d);
             });
+        } catch(e) {}
+    }
+
+    // ── Main route function ────────────────────────────────────────
+    async function go() {
+        const s = document.getElementById('start').dataset;
+        const e = document.getElementById('end').dataset;
+        if (!s.lat || !e.lat) {
+            alert("Please select both locations from the suggestions.");
+            return;
         }
 
-        // ── Main Route Function ────────────────────────────────────
-        async function go() {
-            const s = document.getElementById('start').dataset;
-            const e = document.getElementById('end').dataset;
-            if (!s.lat || !e.lat) { alert("Please select both locations from suggestions."); return; }
+        const btn = document.getElementById('go-btn');
+        btn.textContent = "FETCHING...";
+        btn.classList.add('loading');
+        btn.disabled = true;
 
-            document.getElementById('route-info').innerText = "Fetching routes...";
-            document.getElementById('energy-comparison').innerHTML = "";
-            routePathLayer.clearLayers();
-            markerLayer.clearLayers();
+        document.getElementById('route-info').innerText = "Contacting OSRM...";
+        document.getElementById('route-cards').innerHTML = "";
+        document.getElementById('stats-row').style.display = "none";
+        document.getElementById('turn-box').style.display  = "none";
+        routePathLayer.clearLayers();
+        markerLayer.clearLayers();
 
-            // Stop previous navigation
-            if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-            document.getElementById('turn-alert').style.display = "none";
+        if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+        lastLat = null; lastLon = null;
+        setStatusBar("FETCHING ROUTES", false);
 
-            const vehicle    = document.getElementById('vehicleModel').value;
-            const passengers = document.getElementById('passengerCount').value;
-            const urban      = document.getElementById('urbanMode').checked ? '1' : '0';
-            const url = `/get_routes?orig_lat=${s.lat}&orig_lon=${s.lon}&dest_lat=${e.lat}&dest_lon=${e.lon}&vehicle=${encodeURIComponent(vehicle)}&passengers=${passengers}&urban=${urban}`;
+        const vehicle    = document.getElementById('vehicleModel').value;
+        const passengers = document.getElementById('passengerCount').value;
+        const urban      = document.getElementById('urbanMode').checked ? '1' : '0';
+        const url = `/get_routes?orig_lat=${s.lat}&orig_lon=${s.lon}&dest_lat=${e.lat}&dest_lon=${e.lon}&vehicle=${encodeURIComponent(vehicle)}&passengers=${passengers}&urban=${urban}`;
 
-            try {
-                const res  = await fetch(url);
-                const data = await res.json();
-                if (data.error) { document.getElementById('route-info').innerText = "Error: " + data.error; return; }
+        try {
+            const res  = await fetch(url);
+            const data = await res.json();
 
-                const routes  = data.routes;
-                const bestKwh = routes[0].energy_kwh;
-
-                // ── Draw routes ────────────────────────────────────
-                routes.forEach((route, i) => {
-                    const isBest  = i === 0;
-                    const latlngs = route.geometry.map(pt => [pt[0], pt[1]]);
-                    L.polyline(latlngs, {
-                        color:     isBest ? '#2ecc71' : '#e74c3c',
-                        weight:    isBest ? 7 : 4,
-                        opacity:   isBest ? 1.0 : 0.5,
-                        dashArray: isBest ? null : '8, 10'
-                    }).addTo(routePathLayer).bindPopup(
-                        `<b>${isBest ? '✅ Best' : 'Route ' + (i+1)} — ${route.energy_kwh.toFixed(3)} kWh</b><br>
-                         Distance: ${route.distance_km} km<br>
-                         Duration: ${route.duration_min.toFixed(1)} min<br>
-                         Grade: ${route.grade_percent}%`
-                    );
-                });
-
-                // ── Vehicle icon at origin ─────────────────────────
-                L.marker([parseFloat(s.lat), parseFloat(s.lon)], {
-                    icon: makeVehicleIcon(vehicle)
-                }).addTo(markerLayer).bindPopup(`📍 Start — ${vehicle}`);
-
-                L.marker([parseFloat(e.lat), parseFloat(e.lon)])
-                 .addTo(markerLayer).bindPopup("🏁 Destination");
-
-                // ── Sidebar info ───────────────────────────────────
-                currentRouteDist = routes[0].distance_km;
-                document.getElementById('dist-txt').innerText = "Distance: " + routes[0].distance_km + " km";
-                document.getElementById('cons-txt').innerText = "Energy: "   + routes[0].energy_kwh.toFixed(3) + " kWh";
-
-                // ── Start navigation if steps available ────────────
-                if (routes[0].steps && routes[0].steps.length > 0) {
-                    startNavigation(routes[0].steps);
-                    document.getElementById('route-info').innerText =
-                        routes.length > 1
-                            ? `${routes.length} routes found — Navigation started`
-                            : "Single route — Navigation started";
-                } else {
-                    document.getElementById('route-info').innerText =
-                        routes.length > 1
-                            ? `${routes.length} routes found — Best in green`
-                            : "Single route available";
-                }
-
-                // ── Energy comparison cards ────────────────────────
-                buildComparisonCards(routes, bestKwh);
-                handleSafetyWarning(data.safety_warning);
-
-            } catch (err) {
-                document.getElementById('route-info').innerText = "Failed to fetch routes.";
-                console.error(err);
+            if (data.error) {
+                document.getElementById('route-info').innerText = "Error: " + data.error;
+                setStatusBar("ERROR", false);
+                return;
             }
-        }
 
-        // ── Energy comparison cards ────────────────────────────────
-        function buildComparisonCards(routes, bestKwh) {
-            const container = document.getElementById('energy-comparison');
-            container.innerHTML = "<h4>⚡ Route Energy Comparison</h4>";
+            const routes  = data.routes;
+            const best    = routes[0];
+            const bestKwh = best.energy_kwh;
+
+            // ── Draw routes ────────────────────────────────────────
             routes.forEach((route, i) => {
                 const isBest  = i === 0;
-                const savings = isBest ? 0 : ((route.energy_kwh - bestKwh) / bestKwh * 100).toFixed(1);
+                const latlngs = route.geometry.map(pt => [pt[0], pt[1]]);
+                L.polyline(latlngs, {
+                    color:     isBest ? '#0284c7' : '#b91c1c',
+                    weight:    isBest ? 6 : 3,
+                    opacity:   isBest ? 1.0 : 0.45,
+                    dashArray: isBest ? null : '8 8'
+                }).addTo(routePathLayer).bindPopup(
+                    `<b>${isBest ? '✅ Best' : 'Route ' + (i+1)}</b> — ${route.energy_kwh.toFixed(3)} kWh<br>
+                     ${route.distance_km} km · ${route.duration_min.toFixed(0)} min · grade ${route.grade_percent}%`
+                );
+            });
+
+            // ── Markers ────────────────────────────────────────────
+            // Arrow marker will appear at current GPS position when navigation starts
+
+            // Fit map
+            map.fitBounds(routes[0].geometry.map(pt => [pt[0], pt[1]]), { padding: [50, 50] });
+
+            // ── Sidebar stats ──────────────────────────────────────
+            document.getElementById('stats-row').style.display = "grid";
+            document.getElementById('val-dist').textContent   = best.distance_km;
+            document.getElementById('val-energy').textContent = best.energy_kwh.toFixed(2);
+            document.getElementById('val-dur').textContent    = best.duration_min.toFixed(0);
+            document.getElementById('val-grade').textContent  = best.grade_percent;
+
+            // ── Route cards ────────────────────────────────────────
+            const container = document.getElementById('route-cards');
+            container.innerHTML = `<div class="section-title">Route Comparison</div>`;
+            routes.forEach((route, i) => {
+                const isBest  = i === 0;
+                const pct     = isBest ? 0 : ((route.energy_kwh - bestKwh) / bestKwh * 100).toFixed(1);
                 const card    = document.createElement('div');
                 card.className = "route-card" + (isBest ? " best" : "");
                 card.innerHTML = `
-                    ${isBest ? '<span class="badge">BEST</span>' : ''}
-                    <b>Route ${i + 1}</b><br>
-                    ⚡ ${route.energy_kwh.toFixed(3)} kWh &nbsp;|&nbsp; 📏 ${route.distance_km} km<br>
-                    ⏱ ${route.duration_min.toFixed(1)} min &nbsp;|&nbsp; 📐 ${route.grade_percent}%
-                    ${!isBest
-                        ? `<br><span class="savings">+${savings}% more energy than best</span>`
-                        : `<br><span style="color:#2ecc71">✅ Most efficient</span>`}
+                    <div class="route-card-header">
+                        <span class="route-label">Route ${i + 1}</span>
+                        ${isBest ? '<span class="best-badge">BEST</span>' : ''}
+                    </div>
+                    <div class="route-metrics">
+                        <div>⚡ Energy</div><div><span>${route.energy_kwh.toFixed(3)}</span> kWh</div>
+                        <div>📏 Distance</div><div><span>${route.distance_km}</span> km</div>
+                        <div>⏱ Duration</div><div><span>${route.duration_min.toFixed(0)}</span> min</div>
+                        <div>📐 Grade</div><div><span>${route.grade_percent}</span> %</div>
+                    </div>
+                    ${isBest
+                        ? `<div class="efficient-tag">✓ Most energy efficient</div>`
+                        : `<div class="savings-tag">▲ ${pct}% more energy than best</div>`}
                 `;
                 container.appendChild(card);
             });
-        }
 
-        // ── Safety Warning ─────────────────────────────────────────
-        function handleSafetyWarning(warning) {
-            const banner = document.getElementById('warning-banner');
-            const alarm  = document.getElementById('alarm-sound');
-            if (warning && warning.alert) {
-                banner.style.display = "block";
-                banner.innerText     = "⚠️ " + warning.message;
+            // ── Navigation ─────────────────────────────────────────
+            if (routes[0].steps && routes[0].steps.length > 0) {
+                startNavigation(routes[0].steps);
+                document.getElementById('route-info').innerText =
+                    `${routes.length} route${routes.length > 1 ? 's' : ''} found · navigation active`;
             } else {
-                banner.style.display = "none";
-                alarm.pause();
+                document.getElementById('route-info').innerText =
+                    `${routes.length} route${routes.length > 1 ? 's' : ''} found`;
+                setStatusBar("READY", false);
             }
+
+        } catch (err) {
+            document.getElementById('route-info').innerText = "Failed to fetch routes.";
+            setStatusBar("ERROR", false);
+            console.error(err);
+        } finally {
+            btn.textContent = "OPTIMIZE ROUTE";
+            btn.classList.remove('loading');
+            btn.disabled = false;
         }
-
-        function showSuggestedStop(stop) {
-            const box = document.getElementById('stop-box');
-            if (stop) {
-                document.getElementById('stop-name').innerText = "📍 " + stop.name;
-                box.style.display = "block";
-            } else {
-                box.style.display = "none";
-            }
-        }
-
-        // ── Live Sync (every 1s) ───────────────────────────────────
-        const alarm = document.getElementById('alarm-sound');
-        let canPlay = false;
-        document.addEventListener('click', () => canPlay = true, { once: true });
-
-        async function sync() {
-            try {
-                const vehicle    = document.getElementById('vehicleModel').value;
-                const passengers = document.getElementById('passengerCount').value;
-                const dist       = currentRouteDist || 0;
-                const res  = await fetch(`/get_system_data?dist=${dist}&vehicle=${encodeURIComponent(vehicle)}&passengers=${passengers}`);
-                const data = await res.json();
-                const bar  = document.getElementById('status-bar');
-
-                if (["Alert", "Looking Side", "Calibrating..."].includes(data.status)) {
-                    bar.innerText = "STATUS: " + data.status.toUpperCase();
-                    bar.className = "safe";
-                    alarm.pause();
-                    handleSafetyWarning(null);
-                    showSuggestedStop(null);
-                } else {
-                    bar.innerText = "WARNING: " + data.status.toUpperCase();
-                    bar.className = "danger";
-                    if (canPlay) alarm.play().catch(() => {});
-                    handleSafetyWarning(data.safety_warning);
-                    showSuggestedStop(data.routes && data.routes.suggested_stop);
-                }
-            } catch(e) {}
-        }
-
-        setInterval(sync, 1000);
-    </script>
+    }
+</script>
 </body>
 </html>
