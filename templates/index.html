@@ -6,15 +6,17 @@
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg:       #f0f4f8;
-            --panel:    #ffffff;
-            --border:   #dde3ea;
-            --accent:   #0284c7;
-            --accent2:  #3b82f6;
-            --danger:   #ef4444;
-            --text:     #1e293b;
-            --muted:    #64748b;
-            --card:     #f8fafc;
+            --bg:      #f0f4f8;
+            --panel:   #ffffff;
+            --border:  #dde3ea;
+            --accent:  #0284c7;
+            --accent2: #3b82f6;
+            --green:   #059669;
+            --orange:  #d97706;
+            --red:     #dc2626;
+            --text:    #1e293b;
+            --muted:   #64748b;
+            --card:    #f8fafc;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -28,10 +30,10 @@
             overflow: hidden;
         }
 
-        /* ── SIDEBAR ───────────────────────────────────────────── */
+        /* ── SIDEBAR ── */
         #side {
-            width: 320px;
-            min-width: 320px;
+            width: 340px;
+            min-width: 340px;
             background: var(--panel);
             border-right: 1px solid var(--border);
             display: flex;
@@ -40,203 +42,168 @@
         }
 
         #side-header {
-            padding: 20px;
+            padding: 16px 20px;
             border-bottom: 1px solid var(--border);
             background: var(--accent);
         }
 
-        #side-header h1 {
-            font-size: 20px;
-            font-weight: 700;
-            letter-spacing: 1px;
-            color: #ffffff;
-        }
+        #side-header h1 { font-size: 18px; font-weight: 700; letter-spacing: 1px; color: #fff; }
+        #side-header p  { font-size: 11px; color: rgba(255,255,255,0.7); font-family: 'IBM Plex Mono', monospace; margin-top: 2px; }
 
-        #side-header p {
-            font-size: 12px;
-            color: rgba(255,255,255,0.7);
-            font-family: 'IBM Plex Mono', monospace;
-            margin-top: 2px;
-        }
-
-        /* Turn instruction box — top of sidebar */
+        /* Turn instruction */
         #turn-box {
             display: none;
             margin: 12px 16px 0;
             background: var(--accent2);
             border-radius: 10px;
-            padding: 14px 16px;
+            padding: 12px 14px;
             animation: slideIn 0.3s ease;
         }
 
         @keyframes slideIn {
-            from { opacity: 0; transform: translateY(-8px); }
-            to   { opacity: 1; transform: translateY(0); }
+            from { opacity:0; transform:translateY(-8px); }
+            to   { opacity:1; transform:translateY(0); }
         }
 
-        #turn-icon   { font-size: 28px; float: left; margin-right: 12px; line-height: 1; }
-        #turn-text   { font-size: 15px; font-weight: 600; color: white; line-height: 1.3; }
-        #turn-dist   { font-size: 12px; color: rgba(255,255,255,0.75); font-family: 'IBM Plex Mono', monospace; margin-top: 3px; }
+        #turn-icon { font-size: 26px; float: left; margin-right: 10px; line-height: 1; }
+        #turn-text { font-size: 14px; font-weight: 600; color: white; line-height: 1.3; }
+        #turn-dist { font-size: 11px; color: rgba(255,255,255,0.75); font-family: 'IBM Plex Mono', monospace; margin-top: 2px; }
 
-        #side-scroll {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px;
-        }
-
+        #side-scroll { flex: 1; overflow-y: auto; padding: 14px 16px; }
         #side-scroll::-webkit-scrollbar { width: 4px; }
-        #side-scroll::-webkit-scrollbar-track { background: transparent; }
         #side-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
         /* Stats row */
-        .stats-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 14px;
-        }
+        .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
 
         .stat-card {
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 12px;
+            padding: 10px 12px;
         }
 
-        .stat-card .label {
-            font-size: 10px;
-            color: var(--muted);
-            font-family: 'IBM Plex Mono', monospace;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
+        .stat-card .label { font-size: 10px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-card .value { font-size: 18px; font-weight: 700; color: var(--accent); margin-top: 2px; }
+        .stat-card .unit  { font-size: 10px; color: var(--muted); }
 
-        .stat-card .value {
-            font-size: 20px;
-            font-weight: 700;
-            color: var(--accent);
-            margin-top: 2px;
-        }
-
-        .stat-card .unit {
-            font-size: 11px;
-            color: var(--muted);
-        }
+        /* Section title */
+        .section-title { font-size: 10px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
 
         /* Route cards */
-        .section-title {
-            font-size: 11px;
-            color: var(--muted);
-            font-family: 'IBM Plex Mono', monospace;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            margin-bottom: 8px;
-        }
-
         .route-card {
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: 10px;
             padding: 12px;
             margin-bottom: 8px;
-            transition: border-color 0.2s;
         }
 
-        .route-card.best {
-            border-color: var(--accent);
-            background: rgba(0, 212, 170, 0.05);
-        }
+        .route-card.best { border-color: var(--accent); background: rgba(2,132,199,0.04); }
 
-        .route-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-
+        .route-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .route-label { font-size: 14px; font-weight: 700; }
-        .best-badge {
-            background: var(--accent);
-            color: #000;
-            font-size: 10px;
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 20px;
-            font-family: 'IBM Plex Mono', monospace;
+        .best-badge { background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; font-family: 'IBM Plex Mono', monospace; }
+
+        .route-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; font-size: 12px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; margin-bottom: 8px; }
+        .route-metrics span { color: var(--text); font-weight: 600; }
+
+        /* Uncertainty section inside card */
+        .uncertainty-block {
+            border-top: 1px solid var(--border);
+            padding-top: 8px;
+            margin-top: 4px;
         }
 
-        .route-metrics {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 4px;
+        .uncertainty-title { font-size: 10px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+
+        .uncertainty-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 12px; }
+        .uncertainty-row .u-label { color: var(--muted); }
+        .uncertainty-row .u-value { font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
+
+        /* Risk badge */
+        .risk-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; font-family: 'IBM Plex Mono', monospace; margin-top: 6px; }
+        .risk-badge.low    { background: #d1fae5; color: var(--green); }
+        .risk-badge.medium { background: #fef3c7; color: var(--orange); }
+        .risk-badge.high   { background: #fee2e2; color: var(--red); }
+
+        /* Trip success bar */
+        .success-bar-wrap { margin-top: 6px; }
+        .success-bar-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+        .success-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+        .success-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+
+        /* Savings tag */
+        .savings-tag   { margin-top: 6px; font-size: 11px; color: var(--orange); font-family: 'IBM Plex Mono', monospace; }
+        .efficient-tag { margin-top: 6px; font-size: 11px; color: var(--green); font-family: 'IBM Plex Mono', monospace; }
+
+        /* Flip info box */
+        .flip-box {
+            background: #fef9c3;
+            border: 1px solid #fde047;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-top: 10px;
             font-size: 12px;
-            color: var(--muted);
-            font-family: 'IBM Plex Mono', monospace;
+            color: #854d0e;
         }
 
-        .route-metrics span { color: var(--text); }
+        .flip-box .flip-title { font-weight: 700; margin-bottom: 4px; font-size: 12px; }
 
-        .savings-tag {
-            margin-top: 8px;
-            font-size: 11px;
-            color: #f59e0b;
-            font-family: 'IBM Plex Mono', monospace;
-        }
-
-        .efficient-tag {
-            margin-top: 8px;
-            font-size: 11px;
-            color: var(--accent);
-            font-family: 'IBM Plex Mono', monospace;
-        }
-
-        /* ── MAP PANEL ─────────────────────────────────────────── */
+        /* ── MAP PANEL ── */
         #map-panel { flex: 1; position: relative; }
         #map-canvas { height: 100%; width: 100%; }
 
-        /* ── CONTROLS OVERLAY ──────────────────────────────────── */
+        /* ── CONTROLS ── */
         #controls {
             position: absolute;
             top: 12px; left: 50%;
             transform: translateX(-50%);
             z-index: 1000;
-            background: rgba(255, 255, 255, 0.97);
+            background: rgba(255,255,255,0.97);
             border: 1px solid var(--border);
-            padding: 16px;
+            padding: 14px;
             border-radius: 14px;
             width: 360px;
-            backdrop-filter: blur(10px);
             box-shadow: 0 4px 20px rgba(0,0,0,0.1);
         }
 
-        .ctrl-row {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
+        .ctrl-row { display: flex; gap: 8px; margin-bottom: 8px; }
 
         select, input[type=text], input[type=number] {
-            background: #ffffff;
+            background: #fff;
             color: var(--text);
             border: 1px solid var(--border);
             border-radius: 6px;
-            padding: 9px 12px;
+            padding: 8px 10px;
             font-family: 'Rajdhani', sans-serif;
-            font-size: 14px;
+            font-size: 13px;
             width: 100%;
             outline: none;
-            transition: border-color 0.2s;
         }
 
         select:focus, input:focus { border-color: var(--accent2); }
-
         input[type=number] { width: 70px; min-width: 70px; text-align: center; }
 
+        /* SOC + battery row */
+        .soc-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .soc-row label { white-space: nowrap; font-size: 12px; }
+        .soc-row input[type=range] { flex: 1; }
+        .soc-row .soc-val { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--accent); font-weight: 700; min-width: 36px; text-align: right; }
+
         .suggestions {
-            background: #ffffff;
+            background: #fff;
             border: 1px solid var(--border);
             position: absolute;
-            width: calc(100% - 32px);
+            width: calc(100% - 28px);
             z-index: 2000;
             max-height: 160px;
             overflow-y: auto;
@@ -245,85 +212,48 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
-        .sug-item {
-            padding: 9px 12px;
-            cursor: pointer;
-            font-size: 12px;
-            border-bottom: 1px solid var(--border);
-            transition: background 0.15s;
-            color: var(--text);
-        }
-
+        .sug-item { padding: 8px 12px; cursor: pointer; font-size: 12px; border-bottom: 1px solid var(--border); color: var(--text); }
         .sug-item:hover { background: #f0f4f8; }
 
-        .ctrl-check {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-            color: var(--muted);
-            margin-bottom: 10px;
-            cursor: pointer;
-        }
-
+        .ctrl-check { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 8px; cursor: pointer; }
         .ctrl-check input { width: auto; }
 
         #go-btn {
-            width: 100%;
-            padding: 11px;
-            background: var(--accent);
-            color: #ffffff;
-            border: none;
-            border-radius: 8px;
-            font-family: 'Rajdhani', sans-serif;
-            font-size: 15px;
-            font-weight: 700;
-            letter-spacing: 1px;
-            cursor: pointer;
-            transition: background 0.2s, transform 0.1s;
+            width: 100%; padding: 10px;
+            background: var(--accent); color: #fff;
+            border: none; border-radius: 8px;
+            font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 1px;
+            cursor: pointer; transition: background 0.2s, transform 0.1s;
         }
 
-        #go-btn:hover  { background: #0369a1; }
+        #go-btn:hover { background: #0369a1; }
         #go-btn:active { transform: scale(0.98); }
+        #go-btn.loading { background: var(--muted); cursor: not-allowed; }
 
-        #go-btn.loading {
-            background: var(--muted);
-            cursor: not-allowed;
+        /* ── TURN ALERT ── */
+        #turn-alert {
+            display: none; position: absolute; bottom: 30px; left: 50%;
+            transform: translateX(-50%); z-index: 1001;
+            background: rgba(255,255,255,0.95); border: 2px solid var(--accent2);
+            border-radius: 12px; padding: 12px 20px; font-size: 15px;
+            font-weight: bold; color: var(--text); text-align: center; min-width: 260px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
         }
 
-        /* ── STATUS BAR ────────────────────────────────────────── */
+        #turn-alert .turn-dist { font-size: 11px; color: var(--accent2); margin-top: 3px; font-family: 'IBM Plex Mono', monospace; }
+
+        /* ── STATUS BAR ── */
         #status-bar {
-            position: absolute;
-            bottom: 16px; right: 16px;
-            z-index: 1000;
-            background: rgba(255,255,255,0.95);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 8px 14px;
-            font-size: 12px;
-            font-family: 'IBM Plex Mono', monospace;
-            color: var(--muted);
+            position: absolute; bottom: 16px; right: 16px; z-index: 1000;
+            background: rgba(255,255,255,0.95); border: 1px solid var(--border);
+            border-radius: 8px; padding: 7px 12px; font-size: 11px;
+            font-family: 'IBM Plex Mono', monospace; color: var(--muted);
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
 
-        #status-bar.navigating {
-            border-color: var(--accent);
-            color: var(--accent);
-        }
+        #status-bar.navigating { border-color: var(--accent); color: var(--accent); }
 
-        /* ── ARROW MARKER ──────────────────────────────────────── */
-        .nav-arrow {
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.3s ease;
-        }
-
-        .nav-arrow svg {
-            filter: drop-shadow(0 2px 6px rgba(2,132,199,0.4));
-        }
+        .nav-arrow svg { filter: drop-shadow(0 2px 6px rgba(2,132,199,0.4)); }
     </style>
 </head>
 <body>
@@ -332,10 +262,9 @@
 <div id="side">
     <div id="side-header">
         <h1>⚡ EV ROUTE OPTIMIZER</h1>
-        <p>// physics-based energy model</p>
+        <p>// physics model + uncertainty layer</p>
     </div>
 
-    <!-- Turn instruction at top of sidebar -->
     <div id="turn-box">
         <div id="turn-icon">↑</div>
         <div>
@@ -345,35 +274,16 @@
     </div>
 
     <div id="side-scroll">
-        <!-- Stats -->
         <div class="stats-row" id="stats-row" style="display:none">
-            <div class="stat-card">
-                <div class="label">Distance</div>
-                <div class="value" id="val-dist">--</div>
-                <div class="unit">km</div>
-            </div>
-            <div class="stat-card">
-                <div class="label">Energy</div>
-                <div class="value" id="val-energy">--</div>
-                <div class="unit">kWh</div>
-            </div>
-            <div class="stat-card">
-                <div class="label">Duration</div>
-                <div class="value" id="val-dur">--</div>
-                <div class="unit">min</div>
-            </div>
-            <div class="stat-card">
-                <div class="label">Avg Grade</div>
-                <div class="value" id="val-grade">--</div>
-                <div class="unit">%</div>
-            </div>
+            <div class="stat-card"><div class="label">Distance</div><div class="value" id="val-dist">--</div><div class="unit">km</div></div>
+            <div class="stat-card"><div class="label">Energy</div><div class="value" id="val-energy">--</div><div class="unit">kWh</div></div>
+            <div class="stat-card"><div class="label">Duration</div><div class="value" id="val-dur">--</div><div class="unit">min</div></div>
+            <div class="stat-card"><div class="label">Trip Success</div><div class="value" id="val-success">--</div><div class="unit">%</div></div>
         </div>
 
-        <!-- Route cards -->
         <div id="route-cards"></div>
-
-        <!-- Status text -->
-        <p id="route-info" style="font-size:12px; color:var(--muted); font-family:'IBM Plex Mono',monospace; margin-top:8px;"></p>
+        <div id="flip-info"></div>
+        <p id="route-info" style="font-size:11px; color:var(--muted); font-family:'IBM Plex Mono',monospace; margin-top:8px;"></p>
     </div>
 </div>
 
@@ -381,9 +291,30 @@
 <div id="map-panel">
     <div id="controls">
         <div class="ctrl-row">
-            <select id="vehicleModel"><option value="">Loading vehicles...</option></select>
+            <select id="vehicleModel"><option value="">Loading...</option></select>
             <input type="number" id="passengerCount" value="1" min="1" max="8" title="Passengers">
         </div>
+
+        <!-- Battery SOC slider -->
+        <div class="soc-row">
+            <label>Battery SOC</label>
+            <input type="range" id="socRange" min="5" max="100" step="1" value="80">
+            <span class="soc-val" id="socVal">80%</span>
+        </div>
+
+        <!-- Battery size -->
+        <div class="ctrl-row">
+            <select id="batteryKwh">
+                <option value="25">25 kWh (small)</option>
+                <option value="30">30 kWh</option>
+                <option value="40" selected>40 kWh (standard)</option>
+                <option value="50">50 kWh</option>
+                <option value="60">60 kWh</option>
+                <option value="75">75 kWh</option>
+                <option value="100">100 kWh (large)</option>
+            </select>
+        </div>
+
         <div style="position:relative">
             <input type="text" id="start" placeholder="📍 Start location" oninput="debSearch(this,'s-list')">
             <div id="s-list" class="suggestions"></div>
@@ -392,7 +323,7 @@
             <input type="text" id="end" placeholder="🏁 Destination" oninput="debSearch(this,'e-list')">
             <div id="e-list" class="suggestions"></div>
         </div>
-        <label class="ctrl-check" style="margin-top:10px;">
+        <label class="ctrl-check" style="margin-top:8px;">
             <input type="checkbox" id="urbanMode"> Urban / City Driving
         </label>
         <button id="go-btn" onclick="go()">OPTIMIZE ROUTE</button>
@@ -400,30 +331,22 @@
 
     <div id="map-canvas"></div>
 
+    <div id="turn-alert">
+        <div id="turn-text-map">--</div>
+        <div class="turn-dist" id="turn-dist-map"></div>
+    </div>
+
     <div id="status-bar">READY</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // ── Vehicle emoji icons ────────────────────────────────────────
-    const vehicleIcons = {
-        "Tata Nexon EV":   "🚙",
-        "Tesla Model 3":   "🏎️",
-        "Mahindra XUV400": "🚗",
-        "default":         "🚗"
-    };
-
-    function getVehicleEmoji(v) {
-        return vehicleIcons[v] || vehicleIcons["default"];
-    }
-
     // ── Map ────────────────────────────────────────────────────────
     var map            = L.map('map-canvas', { zoomControl: false }).setView([12.9344, 80.2130], 11);
     var routePathLayer = L.layerGroup().addTo(map);
     var markerLayer    = L.layerGroup().addTo(map);
 
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
-
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
@@ -445,88 +368,75 @@
     }
     loadVehicles();
 
-    // ── Navigation state ───────────────────────────────────────────
-    var currentSteps    = [];
-    var navMarker       = null;
-    var watchId         = null;
-    var lastLat         = null;
-    var lastLon         = null;
-    var currentBearing  = 0;
+    // ── SOC slider ─────────────────────────────────────────────────
+    document.getElementById('socRange').addEventListener('input', function() {
+        document.getElementById('socVal').textContent = this.value + '%';
+    });
 
-    // ── Haversine ─────────────────────────────────────────────────
+    // ── Navigation State ───────────────────────────────────────────
+    var currentSteps   = [];
+    var navMarker      = null;
+    var watchId        = null;
+    var lastLat        = null;
+    var lastLon        = null;
+    var currentBearing = 0;
+
     function haversineM(lat1, lon1, lat2, lon2) {
         const R    = 6371000;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a    = Math.sin(dLat/2)**2 +
-                     Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) *
-                     Math.sin(dLon/2)**2;
+        const dLat = (lat2-lat1)*Math.PI/180;
+        const dLon = (lon2-lon1)*Math.PI/180;
+        const a    = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    // ── Bearing between two points ─────────────────────────────────
-    function bearing(lat1, lon1, lat2, lon2) {
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const y    = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
-        const x    = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) -
-                     Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos(dLon);
-        return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+    function bearingCalc(lat1, lon1, lat2, lon2) {
+        const dLon = (lon2-lon1)*Math.PI/180;
+        const y = Math.sin(dLon)*Math.cos(lat2*Math.PI/180);
+        const x = Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180) - Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);
+        return ((Math.atan2(y,x)*180/Math.PI)+360)%360;
     }
 
-    // ── Arrow SVG icon ─────────────────────────────────────────────
     function makeArrowIcon(degrees) {
         return L.divIcon({
-            html: `<div class="nav-arrow" style="transform:rotate(${degrees}deg)">
-                     <svg width="36" height="36" viewBox="0 0 36 36">
+            html: `<div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;transform:rotate(${degrees}deg)">
+                     <svg width="36" height="36" viewBox="0 0 36 36" style="filter:drop-shadow(0 2px 6px rgba(2,132,199,0.5))">
                        <polygon points="18,2 30,32 18,26 6,32" fill="#0284c7" stroke="#fff" stroke-width="1.5"/>
                      </svg>
                    </div>`,
-            className: "",
-            iconSize:  [36, 36],
-            iconAnchor:[18, 18]
+            className: "", iconSize: [36,36], iconAnchor: [18,18]
         });
     }
 
-    // ── Turn direction icon ────────────────────────────────────────
     function getTurnIcon(text) {
         const t = text.toLowerCase();
-        if (t.includes("left"))         return "↰";
-        if (t.includes("right"))        return "↱";
         if (t.includes("slight left"))  return "↖";
         if (t.includes("slight right")) return "↗";
+        if (t.includes("left"))         return "↰";
+        if (t.includes("right"))        return "↱";
         if (t.includes("u-turn"))       return "↩";
         if (t.includes("arrive"))       return "🏁";
         if (t.includes("roundabout"))   return "🔄";
         return "↑";
     }
 
-    // ── Start navigation ───────────────────────────────────────────
     function startNavigation(steps) {
         currentSteps = [...steps];
         if (watchId !== null) navigator.geolocation.clearWatch(watchId);
         watchId = navigator.geolocation.watchPosition(
             pos => updatePosition(pos.coords.latitude, pos.coords.longitude),
-            err => {
-                console.warn("GPS:", err.message);
-                document.getElementById('route-info').innerText = "GPS unavailable — connect from phone on same WiFi";
-            },
+            err => console.warn("GPS:", err.message),
             { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
         );
         setStatusBar("NAVIGATING", true);
     }
 
-    // ── Update position ────────────────────────────────────────────
     function updatePosition(lat, lon) {
-        // Calculate bearing from previous position
         if (lastLat !== null) {
             const d = haversineM(lastLat, lastLon, lat, lon);
-            if (d > 1) { // Only update bearing if moved more than 1m
-                currentBearing = bearing(lastLat, lastLon, lat, lon);
-            }
+            if (d > 1) currentBearing = bearingCalc(lastLat, lastLon, lat, lon);
         }
         lastLat = lat; lastLon = lon;
 
-        // Create or update arrow marker
         const icon = makeArrowIcon(currentBearing);
         if (!navMarker) {
             navMarker = L.marker([lat, lon], { icon, zIndexOffset: 1000 }).addTo(map);
@@ -534,13 +444,10 @@
             navMarker.setLatLng([lat, lon]);
             navMarker.setIcon(icon);
         }
-
-        // Pan map to follow
         map.panTo([lat, lon]);
 
-        // Find nearest upcoming step
         if (currentSteps.length === 0) {
-            document.getElementById('turn-box').style.display = "none";
+            document.getElementById('turn-alert').style.display = "none";
             return;
         }
 
@@ -550,23 +457,26 @@
             if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
         });
 
-        const step    = currentSteps[nearestIdx];
-        const turnBox = document.getElementById('turn-box');
+        const alertBox = document.getElementById('turn-alert');
+        const step     = currentSteps[nearestIdx];
 
         if (nearestDist < 200) {
-            turnBox.style.display = "block";
+            alertBox.style.display = "block";
+            document.getElementById('turn-text-map').textContent = step.text;
+            document.getElementById('turn-dist-map').textContent = nearestDist < 30 ? "Turn now!" : `In ${Math.round(nearestDist)}m`;
+
+            // Also update sidebar turn box
+            document.getElementById('turn-box').style.display = "block";
             document.getElementById('turn-icon').textContent = getTurnIcon(step.text);
             document.getElementById('turn-text').textContent = step.text;
-            document.getElementById('turn-dist').textContent = nearestDist < 30
-                ? "Turn now!"
-                : `In ${Math.round(nearestDist)} m`;
+            document.getElementById('turn-dist').textContent = nearestDist < 30 ? "Turn now!" : `In ${Math.round(nearestDist)}m`;
 
             if (nearestDist < 20) currentSteps.splice(nearestIdx, 1);
         } else {
-            turnBox.style.display = "none";
+            alertBox.style.display = "none";
+            document.getElementById('turn-box').style.display = "none";
         }
 
-        // Arrived
         if (currentSteps.length === 0) {
             document.getElementById('turn-box').style.display = "block";
             document.getElementById('turn-icon').textContent = "🏁";
@@ -576,19 +486,15 @@
         }
     }
 
-    // ── Status bar ─────────────────────────────────────────────────
     function setStatusBar(text, navigating) {
         const bar = document.getElementById('status-bar');
         bar.textContent = text;
         bar.className   = navigating ? "navigating" : "";
     }
 
-    // ── Location search ────────────────────────────────────────────
+    // ── Location Search ────────────────────────────────────────────
     let timer;
-    function debSearch(input, listId) {
-        clearTimeout(timer);
-        timer = setTimeout(() => search(input, listId), 600);
-    }
+    function debSearch(input, listId) { clearTimeout(timer); timer = setTimeout(() => search(input, listId), 600); }
 
     async function search(input, listId) {
         if (input.value.length < 3) return;
@@ -602,24 +508,21 @@
                 d.className = "sug-item";
                 d.innerText = item.display_name;
                 d.onclick   = () => {
-                    input.value       = item.display_name;
+                    input.value = item.display_name;
                     input.dataset.lat = item.lat;
                     input.dataset.lon = item.lon;
-                    list.innerHTML    = "";
+                    list.innerHTML = "";
                 };
                 list.appendChild(d);
             });
         } catch(e) {}
     }
 
-    // ── Main route function ────────────────────────────────────────
+    // ── Main Route Function ────────────────────────────────────────
     async function go() {
         const s = document.getElementById('start').dataset;
         const e = document.getElementById('end').dataset;
-        if (!s.lat || !e.lat) {
-            alert("Please select both locations from the suggestions.");
-            return;
-        }
+        if (!s.lat || !e.lat) { alert("Please select both locations from the suggestions."); return; }
 
         const btn = document.getElementById('go-btn');
         btn.textContent = "FETCHING...";
@@ -628,6 +531,7 @@
 
         document.getElementById('route-info').innerText = "Contacting OSRM...";
         document.getElementById('route-cards').innerHTML = "";
+        document.getElementById('flip-info').innerHTML = "";
         document.getElementById('stats-row').style.display = "none";
         document.getElementById('turn-box').style.display  = "none";
         routePathLayer.clearLayers();
@@ -640,17 +544,15 @@
         const vehicle    = document.getElementById('vehicleModel').value;
         const passengers = document.getElementById('passengerCount').value;
         const urban      = document.getElementById('urbanMode').checked ? '1' : '0';
-        const url = `/get_routes?orig_lat=${s.lat}&orig_lon=${s.lon}&dest_lat=${e.lat}&dest_lon=${e.lon}&vehicle=${encodeURIComponent(vehicle)}&passengers=${passengers}&urban=${urban}`;
+        const soc        = document.getElementById('socRange').value;
+        const batteryKwh = document.getElementById('batteryKwh').value;
+
+        const url = `/get_routes?orig_lat=${s.lat}&orig_lon=${s.lon}&dest_lat=${e.lat}&dest_lon=${e.lon}&vehicle=${encodeURIComponent(vehicle)}&passengers=${passengers}&urban=${urban}&soc=${soc}&battery_kwh=${batteryKwh}`;
 
         try {
             const res  = await fetch(url);
             const data = await res.json();
-
-            if (data.error) {
-                document.getElementById('route-info').innerText = "Error: " + data.error;
-                setStatusBar("ERROR", false);
-                return;
-            }
+            if (data.error) { document.getElementById('route-info').innerText = "Error: " + data.error; setStatusBar("ERROR", false); return; }
 
             const routes  = data.routes;
             const best    = routes[0];
@@ -666,58 +568,36 @@
                     opacity:   isBest ? 1.0 : 0.45,
                     dashArray: isBest ? null : '8 8'
                 }).addTo(routePathLayer).bindPopup(
-                    `<b>${isBest ? '✅ Best' : 'Route ' + (i+1)}</b> — ${route.energy_kwh.toFixed(3)} kWh<br>
-                     ${route.distance_km} km · ${route.duration_min.toFixed(0)} min · grade ${route.grade_percent}%`
+                    `<b>${isBest ? '✅ Best Route' : 'Route '+(i+1)}</b> — ${route.energy_kwh.toFixed(3)} kWh<br>
+                     ${route.distance_km} km · ${route.duration_min.toFixed(0)} min<br>
+                     Trip success: ${route.uncertainty.trip_success_pct}%`
                 );
             });
 
-            // ── Markers ────────────────────────────────────────────
-            // Arrow marker will appear at current GPS position when navigation starts
-
             // Fit map
-            map.fitBounds(routes[0].geometry.map(pt => [pt[0], pt[1]]), { padding: [50, 50] });
+            map.fitBounds(routes[0].geometry.map(pt => [pt[0], pt[1]]), { padding: [50,50] });
 
             // ── Sidebar stats ──────────────────────────────────────
             document.getElementById('stats-row').style.display = "grid";
             document.getElementById('val-dist').textContent   = best.distance_km;
             document.getElementById('val-energy').textContent = best.energy_kwh.toFixed(2);
             document.getElementById('val-dur').textContent    = best.duration_min.toFixed(0);
-            document.getElementById('val-grade').textContent  = best.grade_percent;
+            document.getElementById('val-success').textContent = best.uncertainty.trip_success_pct;
 
-            // ── Route cards ────────────────────────────────────────
-            const container = document.getElementById('route-cards');
-            container.innerHTML = `<div class="section-title">Route Comparison</div>`;
-            routes.forEach((route, i) => {
-                const isBest  = i === 0;
-                const pct     = isBest ? 0 : ((route.energy_kwh - bestKwh) / bestKwh * 100).toFixed(1);
-                const card    = document.createElement('div');
-                card.className = "route-card" + (isBest ? " best" : "");
-                card.innerHTML = `
-                    <div class="route-card-header">
-                        <span class="route-label">Route ${i + 1}</span>
-                        ${isBest ? '<span class="best-badge">BEST</span>' : ''}
-                    </div>
-                    <div class="route-metrics">
-                        <div>⚡ Energy</div><div><span>${route.energy_kwh.toFixed(3)}</span> kWh</div>
-                        <div>📏 Distance</div><div><span>${route.distance_km}</span> km</div>
-                        <div>⏱ Duration</div><div><span>${route.duration_min.toFixed(0)}</span> min</div>
-                        <div>📐 Grade</div><div><span>${route.grade_percent}</span> %</div>
-                    </div>
-                    ${isBest
-                        ? `<div class="efficient-tag">✓ Most energy efficient</div>`
-                        : `<div class="savings-tag">▲ ${pct}% more energy than best</div>`}
-                `;
-                container.appendChild(card);
-            });
+            // ── Route cards with uncertainty ───────────────────────
+            buildRouteCards(routes, bestKwh);
+
+            // ── Flip info ──────────────────────────────────────────
+            buildFlipInfo(data.flip_info);
 
             // ── Navigation ─────────────────────────────────────────
             if (routes[0].steps && routes[0].steps.length > 0) {
                 startNavigation(routes[0].steps);
                 document.getElementById('route-info').innerText =
-                    `${routes.length} route${routes.length > 1 ? 's' : ''} found · navigation active`;
+                    `${routes.length} route${routes.length>1?'s':''} found · navigation active`;
             } else {
                 document.getElementById('route-info').innerText =
-                    `${routes.length} route${routes.length > 1 ? 's' : ''} found`;
+                    `${routes.length} route${routes.length>1?'s':''} found`;
                 setStatusBar("READY", false);
             }
 
@@ -730,6 +610,92 @@
             btn.classList.remove('loading');
             btn.disabled = false;
         }
+    }
+
+    // ── Build route cards ──────────────────────────────────────────
+    function buildRouteCards(routes, bestKwh) {
+        const container = document.getElementById('route-cards');
+        container.innerHTML = `<div class="section-title">Route Comparison</div>`;
+
+        routes.forEach((route, i) => {
+            const isBest  = i === 0;
+            const pct     = isBest ? 0 : ((route.energy_kwh - bestKwh) / bestKwh * 100).toFixed(1);
+            const u       = route.uncertainty;
+            const riskCls = u.risk_level === "Low Risk" ? "low" : u.risk_level === "Medium Risk" ? "medium" : "high";
+
+            // Success bar color
+            const barColor = u.trip_success_pct >= 85 ? '#059669' : u.trip_success_pct >= 70 ? '#d97706' : '#dc2626';
+
+            const card = document.createElement('div');
+            card.className = "route-card" + (isBest ? " best" : "");
+            card.innerHTML = `
+                <div class="route-card-header">
+                    <span class="route-label">Route ${i+1}</span>
+                    ${isBest ? '<span class="best-badge">BEST</span>' : ''}
+                </div>
+                <div class="route-metrics">
+                    <div>⚡ Energy</div><div><span>${route.energy_kwh.toFixed(3)}</span> kWh</div>
+                    <div>📏 Distance</div><div><span>${route.distance_km}</span> km</div>
+                    <div>⏱ Duration</div><div><span>${route.duration_min.toFixed(0)}</span> min</div>
+                    <div>📐 Grade</div><div><span>${route.grade_percent}</span> %</div>
+                </div>
+                ${isBest
+                    ? `<div class="efficient-tag">✓ Most energy efficient</div>`
+                    : `<div class="savings-tag">▲ ${pct}% more energy than best</div>`}
+
+                <div class="uncertainty-block">
+                    <div class="uncertainty-title">Uncertainty Analysis</div>
+                    <div class="uncertainty-row">
+                        <span class="u-label">Confidence Reserve</span>
+                        <span class="u-value">${u.confidence_reserve_kwh} kWh</span>
+                    </div>
+                    <div class="uncertainty-row">
+                        <span class="u-label">Robust Total Need</span>
+                        <span class="u-value">${u.robust_kwh} kWh</span>
+                    </div>
+                    <div class="uncertainty-row">
+                        <span class="u-label">Nominal Arrival SOC</span>
+                        <span class="u-value">${u.arrival_soc_pct}%</span>
+                    </div>
+                    <div class="uncertainty-row">
+                        <span class="u-label">Protected Arrival SOC</span>
+                        <span class="u-value" style="color:${u.protected_arrival_pct > 10 ? '#059669' : u.protected_arrival_pct > 0 ? '#d97706' : '#dc2626'}">${u.protected_arrival_pct}%</span>
+                    </div>
+                    <div class="success-bar-wrap">
+                        <div class="success-bar-label">
+                            <span>Trip Success Probability</span>
+                            <span style="font-weight:700;color:${barColor}">${u.trip_success_pct}%</span>
+                        </div>
+                        <div class="success-bar">
+                            <div class="success-bar-fill" style="width:${u.trip_success_pct}%;background:${barColor}"></div>
+                        </div>
+                    </div>
+                    <span class="risk-badge ${riskCls}">${u.risk_level}</span>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    // ── Build flip info ────────────────────────────────────────────
+    function buildFlipInfo(flip) {
+        const container = document.getElementById('flip-info');
+        if (!flip || !flip.has_flip) {
+            container.innerHTML = `
+                <div class="flip-box">
+                    <div class="flip-title">🔄 Recommendation Stability</div>
+                    Recommendation stays stable across all battery levels for this route.
+                </div>`;
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="flip-box">
+                <div class="flip-title">⚠️ Route Flip at ${flip.flip_soc_pct}% Battery</div>
+                Above ${flip.flip_soc_pct}% SOC → <strong>${flip.high_soc_route}</strong> is recommended.<br>
+                Below ${flip.flip_soc_pct}% SOC → recommendation flips to <strong>${flip.low_soc_route}</strong> to protect arrival confidence.<br><br>
+                <em>Try adjusting the battery slider above to see this change.</em>
+            </div>`;
     }
 </script>
 </body>

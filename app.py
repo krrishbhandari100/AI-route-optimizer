@@ -5,6 +5,10 @@ from data_layer import fetch_and_enrich_routes
 app = Flask(__name__)
 optimizer = EVRouteOptimizer()
 
+# Default battery sizes per vehicle class (kWh)
+# Used when frontend doesn't send battery_kwh
+DEFAULT_BATTERY_KWH = 40.0
+
 
 @app.route('/')
 def index():
@@ -13,7 +17,6 @@ def index():
 
 @app.route('/get_vehicles')
 def get_vehicles():
-    """Returns all vehicle names loaded from ev_profiles.csv"""
     return jsonify({"vehicles": optimizer.get_vehicle_names()})
 
 
@@ -37,7 +40,9 @@ def get_routes():
     1. Fetch up to 3 real routes from OSRM
     2. Enrich with elevation + per-segment grade
     3. Score each route using physics energy model
-    4. Rank routes by energy (most efficient first)
+    4. Add uncertainty layer — reserve, protected arrival, trip success
+    5. Find flip threshold — at what battery % recommendation changes
+    6. Rank routes by energy (most efficient first)
 
     Query params:
         orig_lat, orig_lon  — origin coordinates
@@ -45,6 +50,8 @@ def get_routes():
         vehicle             — vehicle name (default: Tata Nexon EV)
         passengers          — passenger count (default: 1)
         urban               — '1' for urban driving (default: '0')
+        soc                 — battery state of charge % (default: 80)
+        battery_kwh         — vehicle battery size in kWh (default: 40)
     """
     try:
         orig_lat = float(request.args.get('orig_lat'))
@@ -62,13 +69,24 @@ def get_routes():
     except ValueError:
         passenger_count = 1
 
+    try:
+        soc_percent = float(request.args.get('soc', 80))
+        soc_percent = max(5.0, min(100.0, soc_percent))
+    except ValueError:
+        soc_percent = 80.0
+
+    try:
+        battery_kwh = float(request.args.get('battery_kwh', DEFAULT_BATTERY_KWH))
+    except ValueError:
+        battery_kwh = DEFAULT_BATTERY_KWH
+
     # 1. Fetch routes from OSRM + enrich with elevation
     try:
         routes = fetch_and_enrich_routes(orig_lat, orig_lon, dest_lat, dest_lon)
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 502
 
-    # 2. Score each route
+    # 2. Score each route with physics model
     for route in routes:
         if route.get("segments"):
             route["energy_kwh"] = optimizer.calculate_smart_energy_segmented(
@@ -89,15 +107,38 @@ def get_routes():
                 is_urban        = urban
             )
 
-    # 3. Rank by energy — most efficient first
+        # 3. Add uncertainty metrics on top of physics energy
+        route["uncertainty"] = optimizer.calculate_uncertainty_metrics(
+            expected_kwh  = route["energy_kwh"],
+            distance_km   = route["distance_km"],
+            duration_min  = route["duration_min"],
+            grade_percent = route.get("grade_percent", 0.0),
+            is_urban      = urban,
+            battery_kwh   = battery_kwh,
+            soc_percent   = soc_percent
+        )
+
+    # 4. Rank by energy — most efficient first
     routes_ranked = sorted(routes, key=lambda r: r["energy_kwh"])
     if routes_ranked:
         routes_ranked[0]["recommended"] = True
 
+    # 5. Find flip threshold
+    flip_info = optimizer.find_flip_threshold(
+        routes      = routes_ranked,
+        vehicle_name= vehicle_name,
+        passenger_count = passenger_count,
+        is_urban    = urban,
+        battery_kwh = battery_kwh
+    )
+
     return jsonify({
-        "routes":     routes_ranked,
-        "vehicle":    vehicle_name,
-        "passengers": passenger_count
+        "routes":      routes_ranked,
+        "vehicle":     vehicle_name,
+        "passengers":  passenger_count,
+        "soc":         soc_percent,
+        "battery_kwh": battery_kwh,
+        "flip_info":   flip_info
     })
 
 

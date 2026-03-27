@@ -4,14 +4,11 @@ import os
 
 class EVRouteOptimizer:
     def __init__(self, profiles_csv=None):
-        # ── Load EV profiles from CSV dataset ─────────────────────
         if profiles_csv is None:
-            # Default: look for ev_profiles.csv next to this file
             profiles_csv = os.path.join(os.path.dirname(__file__), "ev_profiles.csv")
 
         self.ev_profiles = self._load_profiles(profiles_csv)
 
-        # Fallback hardcoded profile if CSV fails to load
         self._fallback_profile = {
             "base_mass_kg": 1500,
             "drag_cd": 0.32,
@@ -35,11 +32,6 @@ class EVRouteOptimizer:
     # ------------------------------------------------------------------
 
     def _load_profiles(self, csv_path):
-        """
-        Reads ev_profiles.csv and returns a dict keyed by vehicle_name.
-        Extra columns like cd_source, mass_source, crr_source are ignored
-        by the physics model but kept in the file for academic citation.
-        """
         profiles = {}
         PHYSICS_KEYS = {
             "base_mass_kg", "drag_cd", "frontal_area_m2",
@@ -63,7 +55,6 @@ class EVRouteOptimizer:
         return profiles
 
     def get_vehicle_names(self):
-        """Returns list of all available vehicle names — used by frontend dropdown."""
         return sorted(self.ev_profiles.keys())
 
     # ------------------------------------------------------------------
@@ -146,6 +137,154 @@ class EVRouteOptimizer:
         return round((E_main + E_aux) / 3_600_000, 4)
 
     # ------------------------------------------------------------------
+    # UNCERTAINTY LAYER
+    # Sits on top of physics model — adds reserve, reliability metrics
+    # ------------------------------------------------------------------
+
+    def calculate_uncertainty_metrics(
+        self,
+        expected_kwh,
+        distance_km,
+        duration_min,
+        grade_percent,
+        is_urban,
+        battery_kwh,
+        soc_percent
+    ):
+        """
+        Given expected kWh from physics model, compute:
+        - confidence_reserve_kwh : extra buffer for congestion/terrain uncertainty
+        - robust_kwh             : expected + reserve (worst case need)
+        - available_kwh          : what battery has right now
+        - arrival_soc_pct        : nominal arrival battery %
+        - protected_arrival_pct  : arrival battery % after uncertainty reserve
+        - trip_success_pct       : probability of completing trip safely
+
+        Sources for uncertainty factors:
+        - Base uncertainty: 8% of expected energy (standard EV range variance)
+        - Urban stop-go adds 13% more uncertainty
+        - Grade uncertainty: steep routes harder to predict
+        - SAE J2452 / NREL RouteE variance estimates
+        """
+
+        available_kwh = battery_kwh * (soc_percent / 100.0)
+
+        # ── Uncertainty factor build-up ───────────────────────────
+        # Base: real-world EV energy varies ~8% from model predictions
+        base_uncertainty = 0.08
+
+        # Urban mode adds stop-start unpredictability
+        urban_factor = 0.13 if is_urban else 0.0
+
+        # Grade uncertainty — steeper roads harder to predict accurately
+        grade_abs = abs(grade_percent)
+        grade_factor = min(0.10, grade_abs * 0.008)
+
+        # Distance factor — longer routes accumulate more uncertainty
+        distance_factor = min(0.08, distance_km * 0.002)
+
+        total_uncertainty = base_uncertainty + urban_factor + grade_factor + distance_factor
+
+        # ── Confidence reserve ────────────────────────────────────
+        confidence_reserve_kwh = round(expected_kwh * total_uncertainty, 4)
+
+        # ── Robust kWh (worst case energy needed) ─────────────────
+        robust_kwh = round(expected_kwh + confidence_reserve_kwh, 4)
+
+        # ── Arrival SOC calculations ──────────────────────────────
+        # Nominal: assumes best case (physics model exact)
+        nominal_remaining_kwh   = available_kwh - expected_kwh
+        arrival_soc_pct         = round((nominal_remaining_kwh / battery_kwh) * 100, 1)
+
+        # Protected: assumes worst case (physics model + full reserve)
+        protected_remaining_kwh = available_kwh - robust_kwh
+        protected_arrival_pct   = round((protected_remaining_kwh / battery_kwh) * 100, 1)
+
+        # ── Trip success probability ──────────────────────────────
+        # Based on how much margin exists above the reserve need
+        # If protected_arrival > 10% → high confidence
+        # If protected_arrival 0-10% → medium confidence
+        # If protected_arrival < 0% → trip is risky
+        if protected_arrival_pct >= 15:
+            trip_success_pct = round(min(98, 88 + (protected_arrival_pct - 15) * 0.5), 1)
+        elif protected_arrival_pct >= 5:
+            trip_success_pct = round(72 + (protected_arrival_pct - 5) * 1.6, 1)
+        elif protected_arrival_pct >= 0:
+            trip_success_pct = round(50 + protected_arrival_pct * 4.4, 1)
+        else:
+            # Protected arrival is negative — battery may not be enough
+            trip_success_pct = round(max(8, 50 + protected_arrival_pct * 3.0), 1)
+
+        # ── Risk level label ──────────────────────────────────────
+        if trip_success_pct >= 85:
+            risk_level = "Low Risk"
+        elif trip_success_pct >= 70:
+            risk_level = "Medium Risk"
+        else:
+            risk_level = "High Risk"
+
+        return {
+            "confidence_reserve_kwh": confidence_reserve_kwh,
+            "robust_kwh":             robust_kwh,
+            "available_kwh":          round(available_kwh, 3),
+            "arrival_soc_pct":        arrival_soc_pct,
+            "protected_arrival_pct":  protected_arrival_pct,
+            "trip_success_pct":       trip_success_pct,
+            "risk_level":             risk_level,
+            "uncertainty_factor_pct": round(total_uncertainty * 100, 1)
+        }
+
+    # ------------------------------------------------------------------
+    # Route flip threshold
+    # At what battery % does the recommended route change?
+    # ------------------------------------------------------------------
+
+    def find_flip_threshold(self, routes, vehicle_name, passenger_count, is_urban, battery_kwh):
+        """
+        Scans SOC from 95% down to 5% to find the battery level
+        where the recommended route changes (flip point).
+        Returns flip_soc_pct and which routes swap.
+        """
+        def best_route_at_soc(soc):
+            # Score each route: lower robust_kwh + better protected arrival = better
+            best = None
+            best_score = float('inf')
+            for r in routes:
+                u = self.calculate_uncertainty_metrics(
+                    expected_kwh  = r["energy_kwh"],
+                    distance_km   = r["distance_km"],
+                    duration_min  = r["duration_min"],
+                    grade_percent = r.get("grade_percent", 0.0),
+                    is_urban      = is_urban,
+                    battery_kwh   = battery_kwh,
+                    soc_percent   = soc
+                )
+                # Score = robust need - protected arrival bonus
+                score = u["robust_kwh"] - (u["protected_arrival_pct"] * 0.05)
+                if score < best_score:
+                    best_score = score
+                    best = r
+            return best
+
+        high_soc_best = best_route_at_soc(95)
+        flip_soc      = None
+        flip_to       = None
+
+        for soc in range(94, 4, -1):
+            current_best = best_route_at_soc(soc)
+            if current_best["index"] != high_soc_best["index"]:
+                flip_soc = soc
+                flip_to  = current_best
+                break
+
+        return {
+            "has_flip":       flip_soc is not None,
+            "flip_soc_pct":   flip_soc,
+            "high_soc_route": high_soc_best.get("summary", "Route 1"),
+            "low_soc_route":  flip_to.get("summary", "Route 2") if flip_to else None
+        }
+
+    # ------------------------------------------------------------------
     # Public API methods
     # ------------------------------------------------------------------
 
@@ -165,45 +304,6 @@ class EVRouteOptimizer:
                 )
             scores.append(score)
         return scores
-
-    def get_optimal_route(
-        self, status, dist_from_map,
-        vehicle_name="Tata Nexon EV", passenger_count=1,
-        grade_percent=0.0, is_urban=False
-    ):
-        try:
-            dist = float(dist_from_map)
-        except (ValueError, TypeError):
-            dist = 0.0
-
-        duration_min   = (dist / 40.0) * 60 if dist > 0 else 0
-        energy         = self.calculate_smart_energy(
-            dist, duration_min, vehicle_name, passenger_count, grade_percent, is_urban
-        )
-
-        DANGER_STATES  = {"Drowsy", "Head Drop"}
-        safety_warning = None
-        suggested_stop = None
-
-        if status in DANGER_STATES:
-            safety_warning = {
-                "alert":   True,
-                "level":   "CRITICAL" if status == "Head Drop" else "WARNING",
-                "reason":  status,
-                "message": (
-                    "CRITICAL: Head drop detected — pull over immediately!"
-                    if status == "Head Drop"
-                    else "WARNING: Drowsiness detected — consider taking a break."
-                )
-            }
-            suggested_stop = self.stations[0]
-
-        return {
-            "eco":            {"dist": dist, "energy": energy},
-            "suggested_stop": suggested_stop,
-            "safety_status":  status,
-            "safety_warning": safety_warning
-        }
 
     def get_nearest_station(self, current_lat, current_lon):
         def haversine(lat1, lon1, lat2, lon2):

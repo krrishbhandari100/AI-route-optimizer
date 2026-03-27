@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chennai EV Route Optimizer Simulator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <div class="hero-main card fade-card" style="--delay: 30ms;">
+        <div class="eyebrow">Conservation-First EV Routing</div>
+        <h1>Chennai EV Route Optimizer Simulator</h1>
+        <p class="hero-copy">
+          This MVP shows why EV routing should optimize more than ETA. It combines real Chennai route geometry and
+          elevation with a battery model that prices congestion uncertainty and protected arrival charge.
+        </p>
+        <div class="hero-points">
+          <div class="hero-point">
+            <strong>What is real</strong>
+            <div class="signal-copy">Road ETA, route shape, and elevation are cached from Chennai data.</div>
+          </div>
+          <div class="hero-point">
+            <strong>What is new</strong>
+            <div class="signal-copy">We add an uncertainty reserve instead of optimizing only mean kWh.</div>
+          </div>
+          <div class="hero-point">
+            <strong>Why it matters</strong>
+            <div class="signal-copy">Protected arrival battery is more useful than a nominal range estimate.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-side card fade-card" style="--delay: 120ms;">
+        <div>
+          <div class="section-label">Reviewer Lens</div>
+          <h2>Expected kWh is not enough.</h2>
+        </div>
+        <p id="status-copy"></p>
+        <div class="signal-box">
+          <div class="section-label">What This Demo Proves</div>
+          <p id="reviewer-copy"></p>
+        </div>
+        <div class="pill-row">
+          <span class="pill" id="generated-pill"></span>
+          <span class="pill">No API keys in demo mode</span>
+          <span class="pill">Real Chennai route cache</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <aside class="sidebar">
+        <section class="controls card fade-card" style="--delay: 160ms;">
+          <div>
+            <div class="section-label">Scenario</div>
+            <div class="control-group">
+              <label for="trip-select">Trip pair</label>
+              <select id="trip-select"></select>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-label">Vehicle</div>
+            <div class="control-group">
+              <label for="vehicle-select">EV profile</label>
+              <select id="vehicle-select"></select>
+            </div>
+            <div class="control-group">
+              <label for="driver-select">Driver model</label>
+              <select id="driver-select"></select>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-label">Decision Mode</div>
+            <div class="control-group">
+              <label for="decision-range">Route preference</label>
+              <div class="range-row">
+                <span>Fastest to Safest</span>
+                <span class="range-value" id="decision-value"></span>
+              </div>
+              <input id="decision-range" type="range" min="0" max="100" step="1">
+              <div class="decision-scale">
+                <span>Fastest</span>
+                <span>Balanced</span>
+                <span>Safest</span>
+              </div>
+              <div class="detail-text" id="decision-copy"></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-label">Conditions</div>
+            <div class="control-group">
+              <label for="traffic-select">Operating scenario</label>
+              <select id="traffic-select"></select>
+            </div>
+            <div class="control-group">
+              <label for="soc-range">Starting battery</label>
+              <div class="range-row">
+                <span>State of charge</span>
+                <span class="range-value" id="soc-value"></span>
+              </div>
+              <input id="soc-range" type="range" min="5" max="95" step="1">
+            </div>
+            <div class="control-group">
+              <label for="cabin-select">Cabin load</label>
+              <select id="cabin-select"></select>
+            </div>
+            <div class="flip-card" id="flip-card">
+              <div class="section-label">Recommendation Flip</div>
+              <div class="flip-headline" id="flip-headline"></div>
+              <div class="flip-meter">
+                <div class="flip-zone" id="flip-zone"></div>
+                <div class="flip-threshold" id="flip-threshold"></div>
+                <div class="flip-current" id="flip-current"></div>
+              </div>
+              <div class="detail-text" id="flip-copy"></div>
+            </div>
+          </div>
+
+          <div class="evidence-list">
+            <div class="evidence-item">
+              <strong>Inputs from reality</strong>
+              <div class="detail-text">Road ETA, route geometry, altitude sampling, weather stress, and stop-go exposure enter the score.</div>
+            </div>
+            <div class="evidence-item">
+              <strong>Decision output</strong>
+              <div class="detail-text">The route is ranked on expected energy, reliability reserve, risk, and an ETA tradeoff chosen by the user.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="formula-card card fade-card" style="--delay: 210ms;">
+          <div class="section-label">How We Calculate</div>
+          <div class="formula-stack">
+            <div class="formula-block">
+              <div class="chip-title">Expected energy</div>
+              <code class="formula-code">distance x base EV rate x congestion factor x speed factor + climb - regen + cabin load</code>
+            </div>
+            <div class="formula-block">
+              <div class="chip-title">Reliability reserve</div>
+              <code class="formula-code">expected energy x (base uncertainty + stop-go share + scenario volatility + driver bias)</code>
+            </div>
+            <div class="formula-block">
+              <div class="chip-title">Decision score</div>
+              <code class="formula-code">energy weight x expected use + reserve weight x reserve + ETA penalty + risk penalty</code>
+            </div>
+            <div class="formula-block">
+              <div class="chip-title">Live breakdown</div>
+              <div class="detail-text" id="formula-breakdown"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="demo-prompt card fade-card" style="--delay: 260ms;">
+          <div class="section-label">Demo Cue</div>
+          <div class="prompt-list">
+            <div class="prompt-item">
+              <strong>Start on IIT Madras</strong>
+              <div class="detail-text">The fastest route is not the route the system recommends. That sells the concept immediately.</div>
+            </div>
+            <div class="prompt-item">
+              <strong>Then switch to OMR</strong>
+              <div class="detail-text">Drop battery below 25 percent. The recommendation flips toward the safer corridor.</div>
+            </div>
+          </div>
+        </section>
+      </aside>
+
+      <main class="main">
+        <section class="map-shell card fade-card" style="--delay: 110ms;">
+          <div class="map-header">
+            <div class="map-copy">
+              <div class="section-label">Route Stage</div>
+              <h2 id="map-title"></h2>
+              <p id="map-subtitle"></p>
+            </div>
+            <div class="stat-row" id="map-stats"></div>
+          </div>
+
+          <div class="map-wrap">
+            <svg id="route-map" viewBox="0 0 900 430" preserveAspectRatio="xMidYMid meet" aria-label="Route visualization"></svg>
+          </div>
+          <div class="map-meta">
+            <div class="map-selection">
+              <strong id="selected-title"></strong>
+              <div class="detail-text" id="selected-caption"></div>
+            </div>
+            <div class="map-legend" id="map-legend"></div>
+          </div>
+        </section>
+
+        <section class="comparison-grid" id="comparison-grid"></section>
+        <section class="risk-grid" id="risk-grid"></section>
+        <section class="rationale-grid" id="rationale-grid"></section>
+        <section class="energy-grid" id="energy-grid"></section>
+        <section class="summary-grid" id="summary-grid"></section>
+        <section class="routes-grid" id="routes-grid"></section>
+      </main>
+    </section>
+
+    <section class="insight-grid">
+      <article class="insight-card card fade-card" style="--delay: 120ms;">
+        <div class="section-label">Driver Significance</div>
+        <h3>Lower range anxiety</h3>
+        <p>Drivers see both nominal arrival battery and protected arrival battery under route uncertainty.</p>
+      </article>
+      <article class="insight-card card fade-card" style="--delay: 180ms;">
+        <div class="section-label">Operational Significance</div>
+        <h3>Smarter charge planning</h3>
+        <p>Fleet operators can reduce over-buffering and still avoid failed trips.</p>
+      </article>
+      <article class="insight-card card fade-card" style="--delay: 240ms;">
+        <div class="section-label">Research Significance</div>
+        <h3>Explainable robust routing</h3>
+        <p>The recommendation is explainable in terms of speed profile, slope, route length, and uncertainty.</p>
+      </article>
+      <article class="insight-card card fade-card" style="--delay: 300ms;">
+        <div class="section-label">Product Significance</div>
+        <h3>More than another map</h3>
+        <p>This is a decision-support layer for battery-aware mobility, not just a shortest-path app.</p>
+      </article>
+    </section>
+
+    <div class="reviewer-note" id="reviewer-note"></div>
+    <div class="credit-line" id="credit-line"></div>
+  </div>
+
+  <script src="chennai_demo_data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
